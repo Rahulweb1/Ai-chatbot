@@ -1,0 +1,6 @@
+{
+  "name": "F.R.I.D.A.Y. Stark Tech AI Assistant",
+  "description": "Tony Stark's F.R.I.D.A.Y. AI Assistant OS featuring Stark Tech electric blue HUD, sub-10ms neural fast reply, terminal access, file analysis, multi-lingual voice synthesis with Tamil support, and YouTube launcher.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
