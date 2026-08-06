@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Square, Copy, X, Sparkles, ShieldCheck, Volume2, VolumeX, MessageSquare, Plus } from 'lucide-react';
+import { Minus, Square, Copy, X, Sparkles, ShieldCheck, Volume2, VolumeX, MessageSquare, Plus, FastForward } from 'lucide-react';
 import { ProviderId } from '../types';
 import { ArcRing, ArcRingMode } from './ArcRing';
 
@@ -10,6 +10,8 @@ interface WindowFrameProps {
   tokensPerSec?: number;
   isVoiceModeActive?: boolean;
   onToggleVoiceMode?: () => void;
+  voiceSpeed?: number;
+  onVoiceSpeedChange?: (speed: number) => void;
   arcRingMode?: ArcRingMode;
   audioLevel?: number;
   onOpenSettings: () => void;
@@ -25,6 +27,8 @@ export function WindowFrame({
   tokensPerSec = 84.5,
   isVoiceModeActive = true,
   onToggleVoiceMode,
+  voiceSpeed = 1.25,
+  onVoiceSpeedChange,
   arcRingMode = 'idle',
   audioLevel = 0,
   onOpenSettings,
@@ -64,21 +68,42 @@ export function WindowFrame({
         </button>
       </div>
 
-      {/* Topbar Center (Optional Voice Toggle) */}
+      {/* Topbar Center (Voice Toggle & Speed Control) */}
       <div className="flex items-center gap-2">
         {onToggleVoiceMode && (
-          <button
-            onClick={onToggleVoiceMode}
-            className={`flex items-center gap-1 px-2.5 py-0.5 rounded-[20px] border text-[10.5px] font-mono transition-all ${
-              isVoiceModeActive
-                ? 'bg-[#1e3358] border-[#4c8dff] text-[#8fc0ff]'
-                : 'bg-[#0a0f1c] border-[#182338] text-[#6c7fa0] hover:text-[#e9f0fb]'
-            }`}
-            title="Toggle automatic TTS voice replies"
-          >
-            {isVoiceModeActive ? <Volume2 className="w-3 h-3 text-[#8fc0ff]" /> : <VolumeX className="w-3 h-3 text-[#6c7fa0]" />}
-            <span className="hidden sm:inline">Voice: {isVoiceModeActive ? 'On' : 'Off'}</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={onToggleVoiceMode}
+              className={`flex items-center gap-1 px-2.5 py-0.5 rounded-[20px] border text-[10.5px] font-mono transition-all ${
+                isVoiceModeActive
+                  ? 'bg-[#1e3358] border-[#4c8dff] text-[#8fc0ff]'
+                  : 'bg-[#0a0f1c] border-[#182338] text-[#6c7fa0] hover:text-[#e9f0fb]'
+              }`}
+              title="Toggle automatic TTS voice replies"
+            >
+              {isVoiceModeActive ? <Volume2 className="w-3 h-3 text-[#8fc0ff]" /> : <VolumeX className="w-3 h-3 text-[#6c7fa0]" />}
+              <span className="hidden sm:inline">Voice: {isVoiceModeActive ? 'On' : 'Off'}</span>
+            </button>
+
+            {onVoiceSpeedChange && (
+              <div className="flex items-center gap-1 bg-[#0a0f1c] border border-[#182338] px-2 py-0.5 rounded-[20px] text-[10.5px] font-mono">
+                <FastForward className="w-3 h-3 text-[#8fc0ff]" />
+                <select
+                  value={voiceSpeed || 1.25}
+                  onChange={(e) => onVoiceSpeedChange(parseFloat(e.target.value))}
+                  className="bg-transparent text-[#8fc0ff] font-bold focus:outline-none cursor-pointer"
+                  title="Change Voice TTS Playback Speed"
+                >
+                  <option value="0.75" className="bg-[#0a0f1c] text-[#e9f0fb]">0.75x Slow</option>
+                  <option value="1.0" className="bg-[#0a0f1c] text-[#e9f0fb]">1.0x Normal</option>
+                  <option value="1.25" className="bg-[#0a0f1c] text-[#e9f0fb]">1.25x Fast</option>
+                  <option value="1.5" className="bg-[#0a0f1c] text-[#e9f0fb]">1.5x Speed</option>
+                  <option value="1.75" className="bg-[#0a0f1c] text-[#e9f0fb]">1.75x Fast+</option>
+                  <option value="2.0" className="bg-[#0a0f1c] text-[#e9f0fb]">2.0x Ultra ⚡</option>
+                </select>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

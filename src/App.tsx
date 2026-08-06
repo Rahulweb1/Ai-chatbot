@@ -14,7 +14,7 @@ import { SettingsModal } from './components/Settings/SettingsModal';
 import { SearchModal } from './components/SearchModal';
 import { getStoredSettings, saveSettings } from './lib/memory';
 import { autoRouteModel } from './lib/providers';
-import { stopSpeech } from './lib/speech';
+import { stopSpeech, cleanTextForTTS } from './lib/speech';
 import { ArcRingMode } from './components/ArcRing';
 
 const INITIAL_CONVERSATION: Conversation = {
@@ -23,7 +23,7 @@ const INITIAL_CONVERSATION: Conversation = {
   createdAt: Date.now(),
   updatedAt: Date.now(),
   activeProvider: 'nvidia',
-  activeModelId: 'meta/llama-3.3-70b-instruct',
+  activeModelId: 'meta/llama-3.1-70b-instruct',
   messages: [
     {
       id: 'msg_1',
@@ -39,7 +39,7 @@ I have full Stark System access and high-speed neural capabilities:
 
 How may I assist you today, Boss?`,
       timestamp: Date.now(),
-      modelUsed: 'meta/llama-3.3-70b-instruct',
+      modelUsed: 'meta/llama-3.1-70b-instruct',
       providerUsed: 'nvidia',
       latencyMs: 12,
       tokensPerSec: 110.4,
@@ -57,6 +57,12 @@ export default function App() {
   const [isVoiceModeActive, setIsVoiceModeActive] = useState<boolean>(true);
   const [globalArcRingMode, setGlobalArcRingMode] = useState<ArcRingMode>('idle');
   const [globalAudioLevel, setGlobalAudioLevel] = useState<number>(0);
+
+  // Ref mirrors isVoiceModeActive so TTS closures always read the LIVE value
+  const isVoiceModeActiveRef = useRef<boolean>(true);
+  // Global TTS queue ref so voice toggle can clear it instantly
+  const ttsQueueRef = useRef<string[]>([]);
+  const ttsSpeakingRef = useRef<boolean>(false);
 
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     try {
@@ -189,6 +195,106 @@ export default function App() {
     let accumulatedText = '';
     let thinkingText = '';
 
+    // ─── Streaming sentence-level TTS ─────────────────────────────────────────
+    // Speak each sentence as soon as it finishes streaming, no waiting for full message
+    // Uses module-level refs so voice toggle works instantly mid-stream
+    let ttsSentenceBuffer = '';
+    ttsQueueRef.current = [];
+    ttsSpeakingRef.current = false;
+    const SENTENCE_END = /[.!?।:;\n]{1,2}\s/;
+
+    // Pick the best available female voice (prefer soft English female)
+    const pickFemaleVoice = (): SpeechSynthesisVoice | null => {
+      if (!('speechSynthesis' in window)) return null;
+      const voices = window.speechSynthesis.getVoices();
+      const preferredNames = [
+        'Microsoft Zira', 'Google UK English Female', 'Google US English Female',
+        'Samantha', 'Victoria', 'Karen', 'Moira', 'Veena',
+        'Microsoft Susan', 'Microsoft Hazel', 'Microsoft Linda',
+      ];
+      for (const name of preferredNames) {
+        const v = voices.find(v => v.name.includes(name));
+        if (v) return v;
+      }
+      // Fallback: any female-labeled en-US/en-GB voice
+      return voices.find(v =>
+        (v.lang.startsWith('en')) &&
+        (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') ||
+         v.name.toLowerCase().includes('susan') || v.name.toLowerCase().includes('hazel'))
+      ) || voices.find(v => v.lang.startsWith('en')) || null;
+    };
+
+    const speakNextInQueue = () => {
+      if (ttsSpeakingRef.current || ttsQueueRef.current.length === 0 || !isVoiceModeActiveRef.current) return;
+      const sentence = ttsQueueRef.current.shift()!;
+      const clean = sentence.replace(/[\*\_~#`]/g, '').replace(/https?:\/\/\S+/g, '').trim();
+      if (!clean || clean.length < 4) { speakNextInQueue(); return; }
+      ttsSpeakingRef.current = true;
+      setGlobalArcRingMode('speaking');
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(clean);
+        utt.lang = langOverride || settings.language || 'en-US';
+        utt.rate = Math.min(2.0, Math.max(0.5, settings.voiceSpeed || 1.1));
+        utt.pitch = 1.1;   // slightly higher pitch for soft female tone
+        utt.volume = 1.0;
+        const femaleVoice = pickFemaleVoice();
+        if (femaleVoice) utt.voice = femaleVoice;
+        utt.onend = () => {
+          ttsSpeakingRef.current = false;
+          if (isVoiceModeActiveRef.current) speakNextInQueue();
+          else setGlobalArcRingMode('idle');
+        };
+        utt.onerror = () => {
+          ttsSpeakingRef.current = false;
+          if (isVoiceModeActiveRef.current) speakNextInQueue();
+        };
+        window.speechSynthesis.speak(utt);
+      } else {
+        ttsSpeakingRef.current = false;
+      }
+    };
+
+    const flushTtsBuffer = (force = false) => {
+      if (!isVoiceModeActiveRef.current) return;
+      const match = ttsSentenceBuffer.search(SENTENCE_END);
+      if (match !== -1 || force || ttsSentenceBuffer.length > 40) {
+        const end = force ? ttsSentenceBuffer.length : (match !== -1 ? match + 2 : ttsSentenceBuffer.length);
+        const sentence = ttsSentenceBuffer.slice(0, end).trim();
+        ttsSentenceBuffer = ttsSentenceBuffer.slice(end);
+        if (sentence.length > 3) {
+          ttsQueueRef.current.push(sentence);
+          speakNextInQueue();
+        }
+        if (!force && ttsSentenceBuffer.length > 0) flushTtsBuffer();
+      }
+    };
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const stateUpdateTimerRef = { current: null as any };
+    const pendingUpdateRef = { current: false };
+
+    const batchedSetConversations = () => {
+      pendingUpdateRef.current = true;
+      if (stateUpdateTimerRef.current) return; // already scheduled
+      stateUpdateTimerRef.current = setTimeout(() => {
+        stateUpdateTimerRef.current = null;
+        if (pendingUpdateRef.current) {
+          pendingUpdateRef.current = false;
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id !== activeConversationId) return c;
+              const newMsgs = c.messages.map((m) => {
+                if (m.id !== assistantMsgId) return m;
+                return { ...m, content: accumulatedText, thinking: thinkingText || m.thinking };
+              });
+              return { ...c, messages: newMsgs };
+            })
+          );
+        }
+      }, 50);
+    };
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -246,32 +352,39 @@ export default function App() {
                 thinkingText = parsed.content;
               } else if (eventName === 'chunk' && parsed.text) {
                 accumulatedText += parsed.text;
+                // Feed incoming text into sentence-level TTS buffer
+                ttsSentenceBuffer += parsed.text;
+                flushTtsBuffer();
               } else if (eventName === 'error' && (parsed.error || parsed.message)) {
                 accumulatedText = `⚠️ F.R.I.D.A.Y. Warning: ${parsed.error || parsed.message}`;
               } else if (eventName === 'done') {
                 if (parsed.latencyMs) setLatencyMs(parsed.latencyMs);
                 if (parsed.tokensPerSec) setTokensPerSec(parsed.tokensPerSec);
+                // Flush any remaining text in buffer when stream ends
+                if (isVoiceModeActiveRef.current && ttsSentenceBuffer.trim().length > 3) {
+                  ttsQueueRef.current.push(ttsSentenceBuffer.trim());
+                  ttsSentenceBuffer = '';
+                  speakNextInQueue();
+                }
               }
 
-              setConversations((prev) =>
-                prev.map((c) => {
+              if (eventName === 'chunk') {
+                batchedSetConversations();
+              } else if (eventName === 'done' || eventName === 'error') {
+                // Force immediate final update
+                if (stateUpdateTimerRef.current) { clearTimeout(stateUpdateTimerRef.current); stateUpdateTimerRef.current = null; }
+                setConversations((prev) => prev.map((c) => {
                   if (c.id !== activeConversationId) return c;
                   const newMsgs = c.messages.map((m) => {
                     if (m.id !== assistantMsgId) return m;
-                    return {
-                      ...m,
-                      content: accumulatedText,
-                      thinking: thinkingText || m.thinking,
-                      modelUsed: parsed.modelUsed || m.modelUsed,
-                      providerUsed: parsed.providerUsed || m.providerUsed,
-                      latencyMs: parsed.latencyMs || m.latencyMs,
-                      tokensPerSec: parsed.tokensPerSec || m.tokensPerSec,
-                      isStreaming: eventName !== 'done' && eventName !== 'error',
-                    };
+                    return { ...m, content: accumulatedText, thinking: thinkingText || m.thinking,
+                      modelUsed: parsed.modelUsed || m.modelUsed, providerUsed: parsed.providerUsed || m.providerUsed,
+                      latencyMs: parsed.latencyMs || m.latencyMs, tokensPerSec: parsed.tokensPerSec || m.tokensPerSec,
+                      isStreaming: false };
                   });
                   return { ...c, messages: newMsgs };
-                })
-              );
+                }));
+              }
             } catch (err) {
               // Ignore partial JSON chunks
             }
@@ -334,11 +447,17 @@ export default function App() {
 
   const handleToggleVoiceMode = () => {
     setIsVoiceModeActive((prev) => {
-      if (prev) {
+      const newVal = !prev;
+      isVoiceModeActiveRef.current = newVal;
+      if (!newVal) {
+        // Immediately stop everything when voice is turned OFF
+        window.speechSynthesis?.cancel();
         stopSpeech();
+        ttsQueueRef.current = [];   // clear pending queue
+        ttsSpeakingRef.current = false;
         setGlobalArcRingMode('idle');
       }
-      return !prev;
+      return newVal;
     });
   };
 
@@ -355,6 +474,8 @@ export default function App() {
         tokensPerSec={tokensPerSec}
         isVoiceModeActive={isVoiceModeActive}
         onToggleVoiceMode={handleToggleVoiceMode}
+        voiceSpeed={settings.voiceSpeed}
+        onVoiceSpeedChange={(speed) => handleSaveSettings({ ...settings, voiceSpeed: speed })}
         arcRingMode={globalArcRingMode}
         audioLevel={globalAudioLevel}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -405,6 +526,7 @@ export default function App() {
               onSpeechStateChange={handleSpeechStateChange}
               onSelectTab={(tab) => setActiveTab(tab as NavigationTab)}
               onNewConversation={handleNewConversation}
+              isVoiceModeActive={isVoiceModeActive}
             />
           )}
 

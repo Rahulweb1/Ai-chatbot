@@ -23,11 +23,12 @@ interface ChatMessageItemProps {
   key?: React.Key;
   message: ChatMessage;
   lang?: 'ta-IN' | 'en-US';
+  voiceSpeed?: number;
   onRegenerate?: () => void;
   onEditPrompt?: (newText: string) => void;
 }
 
-export function ChatMessageItem({ message, lang = 'ta-IN', onRegenerate, onEditPrompt }: ChatMessageItemProps) {
+export function ChatMessageItem({ message, lang = 'ta-IN', voiceSpeed = 1.25, onRegenerate, onEditPrompt }: ChatMessageItemProps) {
   const [showThinking, setShowThinking] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -52,6 +53,7 @@ export function ChatMessageItem({ message, lang = 'ta-IN', onRegenerate, onEditP
       setIsSpeaking(true);
       await playTtsAudio(message.content, {
         lang: lang,
+        speed: voiceSpeed || 1.25,
         onVolumeChange: (vol) => setSpeakerAudioLevel(vol),
         onEnd: () => {
           setIsSpeaking(false);

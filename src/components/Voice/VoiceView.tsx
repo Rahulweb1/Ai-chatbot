@@ -20,6 +20,7 @@ import {
   Languages,
   MessageSquare,
   Plus,
+  FastForward,
 } from 'lucide-react';
 import { UserSettings } from '../../types';
 import { autoRouteModel, PROVIDERS } from '../../lib/providers';
@@ -38,9 +39,10 @@ interface VoiceViewProps {
   onSpeechStateChange?: (state: ArcRingMode, volume?: number) => void;
   onSelectTab?: (tab: string) => void;
   onNewConversation?: () => void;
+  isVoiceModeActive?: boolean;
 }
 
-export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSelectTab, onNewConversation }: VoiceViewProps) {
+export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSelectTab, onNewConversation, isVoiceModeActive = true }: VoiceViewProps) {
   const [isListening, setIsListening] = useState<boolean>(false);
   const [voiceStatus, setVoiceStatus] = useState<ArcRingMode>('idle');
   const [audioAmplitude, setAudioAmplitude] = useState<number>(0);
@@ -50,7 +52,39 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
   const [aiResponse, setAiResponse] = useState<string>('');
 
   const [isAutoLoop, setIsAutoLoop] = useState<boolean>(true);
+  const isAutoLoopRef = useRef(isAutoLoop);
+  useEffect(() => { isAutoLoopRef.current = isAutoLoop; }, [isAutoLoop]);
+
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const isMutedRef = useRef(isMuted);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+
+  // Track voice mode active state via ref for closures
+  const isVoiceModeActiveRef = useRef(isVoiceModeActive);
+  useEffect(() => { isVoiceModeActiveRef.current = isVoiceModeActive; }, [isVoiceModeActive]);
+
+  // When voice mode is turned OFF globally, immediately kill everything
+  useEffect(() => {
+    if (!isVoiceModeActive) {
+      stopSpeech();
+      window.speechSynthesis?.cancel();
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort(); } catch {}
+        recognitionRef.current = null;
+      }
+      if (micAnalyserRef.current) {
+        micAnalyserRef.current.stop();
+        micAnalyserRef.current = null;
+      }
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.stop();
+        ttsAudioRef.current = null;
+      }
+      setIsListening(false);
+      updateStatus('idle');
+    }
+  }, [isVoiceModeActive]);
   const [selectedLanguage, setSelectedLanguage] = useState<'ta-IN' | 'en-US'>(
     settings.language || 'en-US'
   );
@@ -60,6 +94,20 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
       setSelectedLanguage(settings.language);
     }
   }, [settings.language]);
+
+  // Cleanup on unmount (e.g. user changes tabs) so it doesn't keep talking
+  useEffect(() => {
+    return () => {
+      stopSpeech();
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch {}
+      }
+      if (micAnalyserRef.current) {
+        micAnalyserRef.current.stop();
+      }
+    };
+  }, []);
 
   const handleLanguageChange = (newLang: 'ta-IN' | 'en-US') => {
     setSelectedLanguage(newLang);
@@ -71,7 +119,7 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
     }
   };
   const [activeModelId, setActiveModelId] = useState<string>(
-    settings.selectedModelOverride || 'meta/llama-3.3-70b-instruct'
+    settings.selectedModelOverride || 'meta/llama-3.1-70b-instruct'
   );
   const [latencyMs, setLatencyMs] = useState<number>(14);
 
@@ -82,6 +130,7 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
   const micAnalyserRef = useRef<{ stop: () => void } | null>(null);
   const ttsAudioRef = useRef<{ stop: () => void } | null>(null);
   const transcriptRef = useRef<string>('');
+  const silenceTimeoutRef = useRef<any>(null);
   transcriptRef.current = transcript;
 
   // Derived information about AI Key and Model currently in use
@@ -121,51 +170,11 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
     if (onSpeechStateChange) onSpeechStateChange(mode, vol);
   };
 
-  // Speech Recognition setup
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition) {
-      const recognition = createSpeechRecognizer(
-        (text, isFinal) => {
-          setTranscript(text);
-          transcriptRef.current = text;
-        },
-        (err) => {
-          console.warn('Speech recognition warning:', err);
-          setIsListening(false);
-          updateStatus('idle');
-          if (micAnalyserRef.current) {
-            micAnalyserRef.current.stop();
-            micAnalyserRef.current = null;
-          }
-        },
-        () => {
-          setIsListening(false);
-          const captured = transcriptRef.current.trim();
-          if (micAnalyserRef.current) {
-            micAnalyserRef.current.stop();
-            micAnalyserRef.current = null;
-          }
-          if (captured) {
-            handleProcessVoiceQuery(captured);
-          } else {
-            updateStatus('idle');
-          }
-        },
-        selectedLanguage
-      );
-
-      recognitionRef.current = recognition;
-
-      return () => {
-        try {
-          if (recognition) recognition.abort();
-        } catch {}
-      };
-    }
-  }, [activeModelId, selectedLanguage]);
-
+  // Removed redundant useEffect SpeechRecognition setup that was conflicting with startListening
   const startListening = () => {
+    // Never start listening if voice mode is globally OFF
+    if (!isVoiceModeActiveRef.current) return;
+    
     stopSpeech();
     setTranscript('');
     transcriptRef.current = '';
@@ -186,6 +195,16 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
           setTranscript(text);
           setInputPrompt(text);
           transcriptRef.current = text;
+          
+          // 2.5 second silence detection
+          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+          if (text.trim() && isAutoLoopRef.current) {
+            silenceTimeoutRef.current = setTimeout(() => {
+              if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch {}
+              }
+            }, 1500);
+          }
         },
         (err) => {
           console.warn('Speech recognition warning:', err);
@@ -239,6 +258,7 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
   };
 
   const stopListening = () => {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -253,9 +273,16 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
   };
 
   const speakAudioResponse = async (text: string) => {
-    if (isMuted) {
+    // Don't speak if voice mode was turned off while we were processing
+    if (!isVoiceModeActiveRef.current) {
       updateStatus('idle');
-      if (isAutoLoop) setTimeout(() => startListening(), 1000);
+      return;
+    }
+    if (isMutedRef.current) {
+      updateStatus('idle');
+      if (isAutoLoopRef.current && isVoiceModeActiveRef.current) setTimeout(() => {
+        if (isVoiceModeActiveRef.current) startListening();
+      }, 1000);
       return;
     }
 
@@ -270,8 +297,11 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
       },
       onEnd: () => {
         updateStatus('idle', 0);
-        if (isAutoLoop) {
-          setTimeout(() => startListening(), 800);
+        // Only auto-restart if voice mode is still ON
+        if (isAutoLoopRef.current && isVoiceModeActiveRef.current) {
+          setTimeout(() => {
+            if (isVoiceModeActiveRef.current) startListening();
+          }, 800);
         }
       },
       onError: () => {
@@ -294,14 +324,15 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
           messages: [
             {
               role: 'system',
-              content: `You are F.R.I.D.A.Y., Tony Stark's AI assistant matrix. Respond concisely (1-2 clear spoken sentences).`,
+              content: `You are F.R.I.D.A.Y., a real-time voice AI assistant. Respond ultra-fast in 1-2 short natural sentences. Address user as Boss.`,
             },
             { role: 'user', content: queryText },
           ],
-          provider: routed.provider,
-          model: routed.model.id,
+          provider: 'nvidia',
+          model: 'meta/llama-3.1-8b-instruct', // Ultra-fast 8B model for sub-second voice reply
+          maxTokens: 100, // Small token limit for instant generation
           userLang: selectedLanguage,
-          webSearchEnabled: settings.webSearchEnabled !== false,
+          webSearchEnabled: false, // Voice mode = instant reply, no web search delay
           userNvidiaKey: settings.nvidiaApiKey,
           userGeminiKey: settings.geminiApiKey,
         }),
@@ -323,19 +354,23 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.substring(6).trim());
-              if (data.text) fullAnswer += data.text;
+              if (data.text) {
+                fullAnswer += data.text;
+                setAiResponse(fullAnswer);
+              }
             } catch {}
           }
         }
       }
 
       const elapsed = Date.now() - startTime;
-      setLatencyMs(elapsed < 100 ? elapsed : Math.floor(Math.random() * 8) + 12);
-      setAiResponse(fullAnswer || 'F.R.I.D.A.Y. voice response generated.');
-      speakAudioResponse(fullAnswer);
+      setLatencyMs(elapsed);
+      const cleanAnswer = fullAnswer.trim() || 'Affirmative, Boss.';
+      setAiResponse(cleanAnswer);
+      speakAudioResponse(cleanAnswer);
     } catch (err) {
       console.error('Voice processing error:', err);
-      const fallbackMsg = `Diagnostics nominal, Boss. F.R.I.D.A.Y. operating via ${routed.model.name}.`;
+      const fallbackMsg = `Affirmative, Boss. Systems operating nominally.`;
       setAiResponse(fallbackMsg);
       speakAudioResponse(fallbackMsg);
     }
@@ -396,6 +431,24 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
             <Activity className="w-4 h-4 text-[#5B9CFF]" />
             <span className="text-[#6B7A99]">Latency:</span>
             <span className="text-[#5B9CFF] font-bold">{latencyMs}ms</span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0A1128] border border-[#12275C] text-xs font-mono">
+            <FastForward className="w-4 h-4 text-[#5B9CFF]" />
+            <span className="text-[#6B7A99]">Speed:</span>
+            <select
+              value={settings.voiceSpeed || 1.25}
+              onChange={(e) => onSaveSettings && onSaveSettings({ ...settings, voiceSpeed: parseFloat(e.target.value) })}
+              className="bg-transparent text-[#5B9CFF] font-bold focus:outline-none cursor-pointer"
+              title="Voice TTS Playback Speed"
+            >
+              <option value="0.75" className="bg-[#0A1128] text-white">0.75x Slow</option>
+              <option value="1.0" className="bg-[#0A1128] text-white">1.0x Normal</option>
+              <option value="1.25" className="bg-[#0A1128] text-white">1.25x Fast</option>
+              <option value="1.5" className="bg-[#0A1128] text-white">1.5x Speed</option>
+              <option value="1.75" className="bg-[#0A1128] text-white">1.75x Fast+</option>
+              <option value="2.0" className="bg-[#0A1128] text-white">2.0x Ultra ⚡</option>
+            </select>
           </div>
 
           <button

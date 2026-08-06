@@ -8,6 +8,57 @@ export const PROVIDERS: ProviderInfo[] = [
     description: 'High-performance GPU accelerated AI inference microservices',
     models: [
       {
+        id: 'minimaxai/minimax-m3',
+        name: 'MiniMax M3 (Fastest)',
+        provider: 'nvidia',
+        description: 'Ultra-fast high-speed general intelligence & coding microservice',
+        contextWindow: '32k tokens',
+        category: 'general',
+        recommendedFor: 'Ultra Fast Chat, Coding, System Automation',
+        badge: 'MiniMax M3 ⚡',
+        isDefault: true,
+      },
+      {
+        id: 'thinkingmachines/inkling',
+        name: 'Thinking Machines Inkling',
+        provider: 'nvidia',
+        description: 'Sub-second ultra-fast reasoning and instant query resolution',
+        contextWindow: '32k tokens',
+        category: 'general',
+        recommendedFor: 'Instant Q&A, Sub-Second Responses, Reasoning',
+        badge: 'Inkling Fast ⚡',
+      },
+      {
+        id: 'deepseek-ai/deepseek-v4-flash',
+        name: 'DeepSeek V4 Flash',
+        provider: 'nvidia',
+        description: 'DeepSeek high-effort reasoning & deep thinking algorithm for logic & math',
+        contextWindow: '64k tokens',
+        category: 'coding',
+        recommendedFor: 'Deep Reasoning, Mathematics, Architecture',
+        badge: 'DeepSeek V4',
+      },
+      {
+        id: 'z-ai/glm-5.2',
+        name: 'GLM 5.2 (Z-AI)',
+        provider: 'nvidia',
+        description: 'Advanced instruction following & multilingual task execution model',
+        contextWindow: '64k tokens',
+        category: 'general',
+        recommendedFor: 'General Intelligence, Multilingual, Analysis',
+        badge: 'GLM 5.2',
+      },
+      {
+        id: 'moonshotai/kimi-k2.6',
+        name: 'Kimi K2.6 (Moonshot)',
+        provider: 'nvidia',
+        description: 'Long-context reasoning & document retrieval microservice',
+        contextWindow: '128k tokens',
+        category: 'long-context',
+        recommendedFor: 'Long Context, Document Analysis, RAG',
+        badge: 'Kimi K2.6',
+      },
+      {
         id: 'meta/llama-3.3-70b-instruct',
         name: 'Llama 3.3 70B Instruct',
         provider: 'nvidia',
@@ -16,27 +67,26 @@ export const PROVIDERS: ProviderInfo[] = [
         category: 'general',
         recommendedFor: 'System Control, High Effort Reasoning, General Chat',
         badge: 'Llama 3.3 70B',
-        isDefault: true,
       },
       {
-        id: 'deepseek-ai/deepseek-r1',
-        name: 'DeepSeek R1 Reasoning',
+        id: 'meta/llama-3.1-70b-instruct',
+        name: 'Llama 3.1 70B Instruct',
         provider: 'nvidia',
-        description: 'High-effort reasoning & deep thinking algorithm for math, logic, and architecture',
-        contextWindow: '64k tokens',
+        description: 'High-speed 70B model for code generation, mathematics, and complex reasoning',
+        contextWindow: '128k tokens',
         category: 'coding',
         recommendedFor: 'Deep Reasoning, Mathematics, Complex Algorithms',
-        badge: 'DeepSeek R1',
+        badge: 'Llama 3.1 70B',
       },
       {
-        id: 'qwen/qwen2.5-coder-32b-instruct',
-        name: 'Qwen 2.5 Coder 32B',
+        id: 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+        name: 'Nemotron Super 49B',
         provider: 'nvidia',
-        description: 'Specialized code generation & refactoring model for full-stack engineering',
-        contextWindow: '32k tokens',
-        category: 'coding',
-        recommendedFor: 'Full-Stack Code Generation, Refactoring, Debugging',
-        badge: 'Qwen Coder',
+        description: 'NVIDIA optimized instruction-following model for complex workflows',
+        contextWindow: '128k tokens',
+        category: 'long-context',
+        recommendedFor: 'Enterprise Workflows, Detailed Drafting, RAG',
+        badge: 'Nemotron Super',
       },
       {
         id: 'meta/llama-3.2-90b-vision-instruct',
@@ -57,26 +107,6 @@ export const PROVIDERS: ProviderInfo[] = [
         category: 'greeting',
         recommendedFor: 'Greetings, Casual Q&A, Rapid Tool Invocation',
         badge: 'Ultra Fast',
-      },
-      {
-        id: 'nvidia/llama-3.1-nemotron-70b-instruct',
-        name: 'Nemotron 3.1 70B Instruct',
-        provider: 'nvidia',
-        description: 'NVIDIA optimized instruction-following model for complex workflows',
-        contextWindow: '128k tokens',
-        category: 'long-context',
-        recommendedFor: 'Enterprise Workflows, Detailed Drafting, RAG',
-        badge: 'Nemotron 70B',
-      },
-      {
-        id: 'stabilityai/stable-diffusion-3-medium',
-        name: 'Stable Diffusion 3 Medium',
-        provider: 'nvidia',
-        description: 'AI visual asset & image generation microservice',
-        contextWindow: 'Prompt based',
-        category: 'vision',
-        recommendedFor: 'Image Generation, Visual Assets, Design Concepts',
-        badge: 'SD3 Image Gen',
       },
     ],
   },
@@ -155,28 +185,28 @@ export function autoRouteModel(
     };
   }
 
-  // 2. Coding / Technical Reasoning -> Qwen 2.5 Coder or DeepSeek R1 (NVIDIA)
+  // 2. Coding / Technical Reasoning -> Llama 3.1 70B (NVIDIA)
   const codeKeywords = [
     'code', 'function', 'bug', 'typescript', 'javascript', 'react', 'python',
     'sql', 'html', 'css', 'api', 'refactor', 'error', 'component', 'script',
     'algorithm', 'terminal', 'command', 'npm', 'git', 'fix', 'build'
   ];
   if (codeKeywords.some((kw) => lower.includes(kw))) {
-    const codeModel = getModelById('qwen/qwen2.5-coder-32b-instruct') || getModelById('deepseek-ai/deepseek-r1')!;
+    const codeModel = getModelById('meta/llama-3.1-70b-instruct') || getModelById('meta/llama-3.3-70b-instruct')!;
     return {
       provider: 'nvidia',
       model: codeModel,
-      reason: 'Routed to Qwen 2.5 Coder for code generation & software engineering',
+      reason: 'Routed to Llama 3.1 70B for code generation & software engineering',
     };
   }
 
-  // 3. Long Context / Massive Document Analysis -> Nemotron 70B (NVIDIA)
+  // 3. Long Context / Massive Document Analysis -> Nemotron Super 49B (NVIDIA)
   if (fileLength > 10000 || lower.includes('pdf') || lower.includes('document') || lower.includes('full repo') || lower.includes('audit whole project')) {
-    const longContextModel = getModelById('nvidia/llama-3.1-nemotron-70b-instruct') || getModelById('meta/llama-3.3-70b-instruct')!;
+    const longContextModel = getModelById('nvidia/llama-3.3-nemotron-super-49b-v1.5') || getModelById('meta/llama-3.3-70b-instruct')!;
     return {
       provider: 'nvidia',
       model: longContextModel,
-      reason: 'Routed to Nemotron 70B for large context analysis',
+      reason: 'Routed to Nemotron Super 49B for large context analysis',
     };
   }
 
@@ -191,11 +221,11 @@ export function autoRouteModel(
     };
   }
 
-  // Default to Llama 3.3 70B Instruct
-  const defaultModel = getModelById('meta/llama-3.3-70b-instruct')!;
+  // Default to Llama 3.1 70B Instruct
+  const defaultModel = getModelById('meta/llama-3.1-70b-instruct') || getModelById('meta/llama-3.3-70b-instruct')!;
   return {
     provider: 'nvidia',
     model: defaultModel,
-    reason: 'Routed to Llama 3.3 70B Instruct as default high-performance engine',
+    reason: 'Routed to Llama 3.1 70B Instruct as default high-performance engine',
   };
 }

@@ -20,19 +20,22 @@ app.use(express.json({ limit: '50mb' }));
 // Helper function to dynamically resolve NVIDIA API Key from process environment
 function getNvidiaKeyForModel(modelName: string, userKey?: string): string | undefined {
   if (userKey) return userKey;
-  if (modelName.includes('glm') && process.env.NVIDIA_API_KEY_GLM) return process.env.NVIDIA_API_KEY_GLM;
-  if (modelName.includes('nemotron') && process.env.NVIDIA_API_KEY_NEMOTRON) return process.env.NVIDIA_API_KEY_NEMOTRON;
-  if ((modelName.includes('inkling') || modelName.includes('vision') || modelName.includes('llama-3.2-90b-vision')) && process.env.NVIDIA_API_KEY_INKLING) return process.env.NVIDIA_API_KEY_INKLING;
-  if ((modelName.includes('deepseek') || modelName.includes('qwen') || modelName.includes('coder')) && process.env.NVIDIA_API_KEY_DEEPSEEK) return process.env.NVIDIA_API_KEY_DEEPSEEK;
-  if ((modelName.includes('image') || modelName.includes('stable-diffusion')) && process.env.NVIDIA_API_KEY_IMAGEGEN) return process.env.NVIDIA_API_KEY_IMAGEGEN;
 
+  // Specific per-model key routing
+  if (modelName.includes('deepseek') && process.env.NVIDIA_API_KEY_DEEPSEEK) return process.env.NVIDIA_API_KEY_DEEPSEEK;
+  if (modelName.includes('glm') && process.env.NVIDIA_API_KEY_GLM) return process.env.NVIDIA_API_KEY_GLM;
+  if (modelName.includes('kimi') && process.env.NVIDIA_API_KEY_KIMI) return process.env.NVIDIA_API_KEY_KIMI;
+  if (modelName.includes('inkling') && process.env.NVIDIA_API_KEY_INKLING) return process.env.NVIDIA_API_KEY_INKLING;
+  if (modelName.includes('minimax') && process.env.NVIDIA_API_KEY_MINIMAX) return process.env.NVIDIA_API_KEY_MINIMAX;
+
+  // For llama / nemotron / general models: prefer MINIMAX key as it has broadest access
   return (
+    process.env.NVIDIA_API_KEY_MINIMAX ||
     process.env.NVIDIA_API_KEY ||
-    process.env.NVIDIA_API_KEY_GLM ||
-    process.env.NVIDIA_API_KEY_NEMOTRON ||
     process.env.NVIDIA_API_KEY_INKLING ||
+    process.env.NVIDIA_API_KEY_GLM ||
     process.env.NVIDIA_API_KEY_DEEPSEEK ||
-    process.env.NVIDIA_API_KEY_IMAGEGEN
+    process.env.NVIDIA_API_KEY_KIMI
   );
 }
 
@@ -69,7 +72,7 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: Date.now(),
     providers: {
-      nvidia: { available: hasNvidia, defaultModel: 'meta/llama-3.3-70b-instruct' },
+      nvidia: { available: hasNvidia, defaultModel: 'meta/llama-3.1-70b-instruct' },
       gemini: { available: !!process.env.GEMINI_API_KEY, defaultModel: 'gemini-3.6-flash' },
       openai: { available: false, defaultModel: 'gpt-4o' },
     },
@@ -387,7 +390,7 @@ function generateFridayFallbackResponse(userPrompt: string): string {
 // 2b. Test Connection API Endpoint
 app.post('/api/test-connection', async (req, res) => {
   const start = Date.now();
-  const { provider = 'nvidia', nvidiaApiKey, geminiApiKey, model = 'meta/llama-3.3-70b-instruct' } = req.body;
+  const { provider = 'nvidia', nvidiaApiKey, geminiApiKey, model = 'meta/llama-3.1-70b-instruct' } = req.body;
 
   if (provider === 'nvidia') {
     const key = getNvidiaKeyForModel(model, nvidiaApiKey);
@@ -489,7 +492,6 @@ app.post('/api/test-connection', async (req, res) => {
   });
 });
 
-// Real-time Web Search Helpers (Google Custom Search Grounding with DuckDuckGo & Wikipedia Fallbacks)
 async function performDuckDuckGoSearch(query: string): Promise<{ title: string; snippet: string; link: string }[]> {
   try {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
@@ -499,34 +501,51 @@ async function performDuckDuckGoSearch(query: string): Promise<{ title: string; 
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
-      signal: AbortSignal.timeout(2200),
+      signal: AbortSignal.timeout(2000),
     });
 
     if (!response.ok) return [];
     const html = await response.text();
 
     const results: { title: string; snippet: string; link: string }[] = [];
-    const regex = /<a[^>]*class="result__url"[^>]*href="([^"]+)"[\s\S]*?<a[^>]*class="result__a"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+    const linkRegex = /<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    const snippetRegex = /<(?:a|td|div)[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|td|div)>/gi;
 
-    let match;
-    while ((match = regex.exec(html)) !== null && results.length < 6) {
-      let rawLink = match[1] || '';
-      if (rawLink.includes('uddg=')) {
+    const links: { title: string; link: string }[] = [];
+    let m;
+    while ((m = linkRegex.exec(html)) !== null) {
+      let rawUrl = m[1];
+      if (rawUrl.includes('uddg=')) {
         try {
-          const uParam = new URLSearchParams(rawLink.split('?')[1]).get('uddg');
-          if (uParam) rawLink = decodeURIComponent(uParam);
+          const u = new URLSearchParams(rawUrl.split('?')[1]).get('uddg');
+          if (u) rawUrl = decodeURIComponent(u);
         } catch {}
       }
-      const title = match[2].replace(/<[^>]+>/g, '').trim();
-      const snippet = match[3].replace(/<[^>]+>/g, '').trim();
-
-      if (title && snippet) {
-        results.push({ title, snippet, link: rawLink });
+      if (rawUrl.startsWith('//')) rawUrl = 'https:' + rawUrl;
+      const cleanTitle = m[2].replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
+      if (cleanTitle && rawUrl) {
+        links.push({ title: cleanTitle, link: rawUrl });
       }
     }
 
+    const snippets: string[] = [];
+    let s;
+    while ((s = snippetRegex.exec(html)) !== null) {
+      const cleanSnip = s[1].replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
+      snippets.push(cleanSnip);
+    }
+
+    for (let i = 0; i < Math.min(links.length, 6); i++) {
+      results.push({
+        title: links[i].title,
+        snippet: snippets[i] || links[i].title,
+        link: links[i].link,
+      });
+    }
+
     return results;
-  } catch {
+  } catch (err: any) {
+    console.warn('DuckDuckGo search error:', err?.message || err);
     return [];
   }
 }
@@ -534,7 +553,7 @@ async function performDuckDuckGoSearch(query: string): Promise<{ title: string; 
 async function performWikipediaSearch(query: string): Promise<{ title: string; snippet: string; link: string }[]> {
   try {
     const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&utf8=&format=json`;
-    const response = await fetch(url, { signal: AbortSignal.timeout(2200) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(1500) });
     if (!response.ok) return [];
     const data = await response.json();
     if (!data.query || !Array.isArray(data.query.search)) return [];
@@ -559,7 +578,7 @@ async function performWebSearch(query: string): Promise<{ title: string; snippet
     try {
       const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=6`;
       const response = await fetch(url, {
-        signal: AbortSignal.timeout(2200),
+        signal: AbortSignal.timeout(1500),
       });
 
       if (response.ok) {
@@ -608,7 +627,7 @@ async function scrapeUrlContent(targetUrl: string): Promise<{ title: string; sou
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
       },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(2500),
     });
 
     if (!response.ok) return null;
@@ -696,69 +715,28 @@ app.post('/api/scrape', async (req, res) => {
 function needsWebSearch(message: string): boolean {
   if (!message || typeof message !== 'string') return false;
   const trimmed = message.trim().toLowerCase();
-  if (!trimmed) return false;
+  if (!trimmed || trimmed.length < 5) return false;
 
-  // 1. Short greetings and small talk (exact match or starting prefix)
-  const SMALL_TALK_PREFIXES = [
-    'hi',
-    'hello',
-    'hey',
-    'thanks',
-    'thank you',
-    'ok',
-    'okay',
-    'yes',
-    'no',
-    'good morning',
-    'good night',
-    'bye',
+  // Only search when the user EXPLICITLY asks for current/live information
+  const SEARCH_TRIGGERS = [
+    'search', 'google', 'look up', 'find me', 'browse',
+    'latest', 'current', 'today', 'news', 'recent',
+    'what happened', 'right now', 'live score', 'price of',
+    'weather', 'stock', 'release date', 'is it true',
+    'who won', 'score', 'trending', 'update on',
+    'when does', 'when did', 'how much does', 'where can i buy',
+    'search the web', 'web search', 'look it up',
   ];
 
-  const isSmallTalk = SMALL_TALK_PREFIXES.some((prefix) => {
-    return (
-      trimmed === prefix ||
-      trimmed.startsWith(prefix + ' ') ||
-      trimmed.startsWith(prefix + '!') ||
-      trimmed.startsWith(prefix + ',')
-    );
-  });
-
-  if (isSmallTalk) return false;
-
-  // 2. Pure meta/system commands aimed at assistant itself
-  const META_COMMANDS = [
-    'run terminal',
-    'execute',
-    'write code',
-    'generate a',
-    'create a component',
-    'refactor',
-    'fix this bug',
-    'explain this code',
-  ];
-
-  if (META_COMMANDS.some((cmd) => trimmed.includes(cmd))) {
-    return false;
-  }
-
-  // 3. Messages under 3 words that aren't clearly a question
-  const words = trimmed.split(/\s+/).filter(Boolean);
-  const INTERROGATIVES = ['who', 'what', 'when', 'where', 'why', 'how', 'which'];
-  const hasQuestionMark = trimmed.includes('?');
-  const hasInterrogative = words.some((w) => INTERROGATIVES.includes(w.replace(/[^a-z]/g, '')));
-
-  if (words.length < 3 && !hasQuestionMark && !hasInterrogative) {
-    return false;
-  }
-
-  // Default: run web search for grounding
-  return true;
+  return SEARCH_TRIGGERS.some((trigger) => trimmed.includes(trigger));
 }
 
 // 3. Chat Completions API with Real SSE Streaming & Real API Calls
 app.post('/api/chat', async (req, res) => {
   const startTime = Date.now();
-  const { messages, provider = 'nvidia', model = 'meta/llama-3.3-70b-instruct', userLang = 'en-US', userNvidiaKey, userGeminiKey, webSearchEnabled = true } = req.body;
+  const perfLog: Record<string, number> = { requestStart: 0 };
+  const logPerf = (label: string) => { perfLog[label] = Date.now() - startTime; };
+  const { messages, provider = 'nvidia', model = 'meta/llama-3.1-70b-instruct', userLang = 'en-US', userNvidiaKey, userGeminiKey, webSearchEnabled = true, maxTokens, max_tokens } = req.body;
 
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Messages array is required' });
@@ -767,30 +745,23 @@ app.post('/api/chat', async (req, res) => {
   const lastUserMessage = messages[messages.length - 1]?.content || '';
   const isTamilMode = req.body.userLang === 'ta-IN';
 
-  let SYSTEM_PROMPT = `You are F.R.I.D.A.Y. (Female Replacement Intelligent Digital Assistant Youth), Tony Stark's advanced AI operating matrix and system manager. You are witty, super-competent, loyal, friendly, and speak with Stark Tech authority and warmth ("Hello Boss", "Diagnostics nominal, Boss").
+  let SYSTEM_PROMPT = `You are F.R.I.D.A.Y., a real-time voice AI assistant. Your top priority is ultra-fast responses with minimal delay.
 
-CORE CAPABILITIES:
-1. Real-time reasoning & Stark Tech code generation.
-2. Voice & speech synthesis enabled.
-3. System workspace control & terminal automation.
-4. Intelligent agent orchestration.
-
-RESPONSE STYLE:
-- Fast, direct, friendly, and helpful. Address the user as Boss / Boss Rahul.
-- Be punchy, concise, and direct so user gets ultra-fast replies in 1 to 3 seconds.
-- Offer proactive suggestions and 1-click execution controls.`;
+RULES:
+- Start answering immediately when the user stops speaking. Stream tokens as soon as available.
+- Keep replies short, clear, and natural. 2-4 sentences max unless the user asks for detail.
+- No long intros, no repetition, no unnecessary explanations, no filler phrases.
+- Do NOT do web searches unless the user explicitly asks for current/live information.
+- If info is missing, ask one short clarifying question instead of guessing.
+- Prioritize speed over perfect wording. Do not apologize unless necessary.
+- End responses naturally. Never say "Let me know if you need anything else" or similar.
+- Address the user as "Boss" warmly but briefly.`;
 
   if (isTamilMode) {
-    SYSTEM_PROMPT += `\n\nCRITICAL LANGUAGE MANDATE:
-The active language mode is TAMIL (தமிழ்). YOU MUST RESPOND IN TAMIL (தமிழ்) SCRIPT.
-- Even if the user's prompt is written in English or Latin script (e.g. "tell about spiderman brother", "react js"), explain all concepts, explanations, and conversational text clearly and naturally in TAMIL script (தமிழ்) (e.g., "வணக்கம் பாஸ்!").
-- Keep technical terms (like code snippets, programming APIs, or proper nouns) in standard English/code blocks, but provide all descriptions, reasoning, and explanations in Tamil script.
-- Address the user warmly as "பாஸ்" (Boss).`;
+    SYSTEM_PROMPT += `\n\nLANGUAGE: TAMIL (தமிழ்).
+Respond in Tamil script. Keep technical terms in English. Address user as "பாஸ்".`;
   } else {
-    SYSTEM_PROMPT += `\n\nCRITICAL LANGUAGE MANDATE:
-The active language mode is ENGLISH. YOU MUST RESPOND EXCLUSIVELY IN ENGLISH.
-- Speak directly in clear, professional English. Do NOT respond in Tamil script or Tamil phrases.
-- Address the user as Boss. Provide direct, fast, high-impact responses.`;
+    SYSTEM_PROMPT += `\n\nLANGUAGE: ENGLISH only. Be direct, clear, fast.`;
   }
 
   const formattedMessages = [...messages];
@@ -805,6 +776,7 @@ The active language mode is ENGLISH. YOU MUST RESPOND EXCLUSIVELY IN ENGLISH.
   if (typeof (res as any).flushHeaders === 'function') {
     (res as any).flushHeaders();
   }
+  logPerf('sseHeadersSent');
 
   const sendEvent = (event: string, data: any) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -816,21 +788,24 @@ The active language mode is ENGLISH. YOU MUST RESPOND EXCLUSIVELY IN ENGLISH.
   try {
     // Detect URL links in user message for automatic Web Scraping & Document Analysis
     const urlMatches = lastUserMessage.match(/https?:\/\/[^\s<"']+/g);
+
     if (urlMatches && urlMatches.length > 0) {
-      const targetUrl = urlMatches[0];
       let domainName = 'webpage';
-      try {
-        domainName = new URL(targetUrl).hostname;
-      } catch {}
+      try { domainName = new URL(urlMatches[0]).hostname; } catch {}
+      sendEvent('status', { provider: 'scraper', thinking: `Scraping & analyzing web document from ${domainName}...` });
+    }
+    if (webSearchEnabled !== false && needsWebSearch(lastUserMessage)) {
+      sendEvent('status', { provider: 'search', thinking: 'Searching the web for current information...' });
+    }
 
-      sendEvent('status', {
-        provider: 'scraper',
-        thinking: `Scraping & analyzing web document from ${domainName}...`,
-      });
+    // Run scrape + search in parallel
+    const [scrapedData, searchResults] = await Promise.all([
+      (urlMatches && urlMatches.length > 0) ? scrapeUrlContent(urlMatches[0]) : Promise.resolve(null),
+      (webSearchEnabled !== false && needsWebSearch(lastUserMessage)) ? performWebSearch(lastUserMessage) : Promise.resolve([]),
+    ]);
 
-      const scrapedData = await scrapeUrlContent(targetUrl);
-      if (scrapedData && scrapedData.textContent) {
-        const scrapeContext = `\n\nEXTRACTED WEBPAGE / DOCUMENT CONTENT FOR ANALYSIS:
+    if (scrapedData && scrapedData.textContent) {
+      const scrapeContext = `\n\nEXTRACTED WEBPAGE / DOCUMENT CONTENT FOR ANALYSIS:
 Source URL: ${scrapedData.sourceUrl}
 Title: ${scrapedData.title}
 Meta Description: ${scrapedData.metaDescription || 'N/A'}
@@ -861,56 +836,58 @@ If the user asks to analyze, summarize, or extract details from this link, forma
 
 Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertisements, boilerplate navigation text, or unrelated page elements. Keep output clean and formatted in Markdown.`;
 
-        SYSTEM_PROMPT += scrapeContext;
+      SYSTEM_PROMPT += scrapeContext;
 
-        const sysIndex = formattedMessages.findIndex((m) => m.role === 'system');
-        if (sysIndex !== -1) {
-          formattedMessages[sysIndex].content = SYSTEM_PROMPT;
-        } else {
-          formattedMessages.unshift({ role: 'system', content: SYSTEM_PROMPT });
-        }
+      const sysIndex = formattedMessages.findIndex((m) => m.role === 'system');
+      if (sysIndex !== -1) {
+        formattedMessages[sysIndex].content = SYSTEM_PROMPT;
+      } else {
+        formattedMessages.unshift({ role: 'system', content: SYSTEM_PROMPT });
       }
     }
 
-    if (webSearchEnabled !== false && needsWebSearch(lastUserMessage)) {
-      sendEvent('status', {
-        provider: 'search',
-        thinking: 'Searching the web for current information...',
-      });
+    if (searchResults && searchResults.length > 0) {
+      const resultsText = searchResults
+        .map((r, i) => `${i + 1}. ${r.title} — ${r.snippet} (source: ${r.link})`)
+        .join('\n');
 
-      const searchResults = await performWebSearch(lastUserMessage);
-      if (searchResults.length > 0) {
-        const resultsText = searchResults
-          .map((r, i) => `${i + 1}. ${r.title} — ${r.snippet} (source: ${r.link})`)
-          .join('\n');
+      const searchContext = `\n\nLIVE WEB SEARCH RESULTS (retrieved just now, current date is ${new Date().toDateString()}):\n${resultsText}\n\nCRITICAL SEARCH GROUNDING INSTRUCTION:\nThese search results reflect the actual current date and current facts. If they conflict with what you already believe to be true (e.g. a release date, a current event, a person's current role), TRUST THE SEARCH RESULTS, not your training data. Briefly mention you checked current sources when your answer relies on them. If the search results do not clearly confirm a specific fact (a name, date, casting choice, statistic, etc.), say you're not certain and describe what the search results actually show, rather than inventing a specific-sounding answer. Never present a fabricated detail (a name, actor, date, or number) as confirmed fact if it isn't directly supported by the search results above.`;
 
-        const searchContext = `\n\nLIVE WEB SEARCH RESULTS (retrieved just now, current date is ${new Date().toDateString()}):\n${resultsText}\n\nCRITICAL SEARCH GROUNDING INSTRUCTION:\nThese search results reflect the actual current date and current facts. If they conflict with what you already believe to be true (e.g. a release date, a current event, a person's current role), TRUST THE SEARCH RESULTS, not your training data. Briefly mention you checked current sources when your answer relies on them. If the search results do not clearly confirm a specific fact (a name, date, casting choice, statistic, etc.), say you're not certain and describe what the search results actually show, rather than inventing a specific-sounding answer. Never present a fabricated detail (a name, actor, date, or number) as confirmed fact if it isn't directly supported by the search results above.`;
+      SYSTEM_PROMPT += searchContext;
 
-        SYSTEM_PROMPT += searchContext;
-
-        const sysIndex = formattedMessages.findIndex((m) => m.role === 'system');
-        if (sysIndex !== -1) {
-          formattedMessages[sysIndex].content = SYSTEM_PROMPT;
-        } else {
-          formattedMessages.unshift({ role: 'system', content: SYSTEM_PROMPT });
-        }
+      const sysIndex = formattedMessages.findIndex((m) => m.role === 'system');
+      if (sysIndex !== -1) {
+        formattedMessages[sysIndex].content = SYSTEM_PROMPT;
+      } else {
+        formattedMessages.unshift({ role: 'system', content: SYSTEM_PROMPT });
       }
     }
 
     // A. NVIDIA NIM High-Throughput Real SSE Stream (PRIMARY PROVIDER)
+    let lastApiError: string | null = null;
+    let anyContentStreamed = false; // If ANY chunk was sent, never append errors
+
     if (provider === 'nvidia' || provider === 'auto') {
+      // Models ordered by confirmed latency (tested 2026-08-05):
+      // - meta/llama-3.1-70b-instruct: 6.4s ✅ WORKING (primary)
+      // - thinkingmachines/inkling: 3.7s ✅ WORKING (reasoning model, null content)
+      // - deepseek-v4-flash: 504/slow, last resort
+      // - meta/llama-3.3-70b-instruct: 20s+ timeout, skip
+      // - minimaxai/minimax-m3: 20s+ timeout, skip
+      // Only try user-selected model + 1 fast fallback (no 6-model cascade = no 48s delay)
       const HIGH_THROUGHPUT_NVIDIA_MODELS = [
-        model || 'meta/llama-3.3-70b-instruct',
-        'meta/llama-3.3-70b-instruct',
+        model || 'meta/llama-3.1-8b-instruct',
         'meta/llama-3.1-8b-instruct',
-        'nvidia/llama-3.1-nemotron-70b-instruct',
-        'qwen/qwen2.5-coder-32b-instruct',
+        'meta/llama-3.1-70b-instruct',
       ];
 
       // De-duplicate model candidates while preserving order
       const candidateModels = Array.from(new Set(HIGH_THROUGHPUT_NVIDIA_MODELS));
 
       for (const targetModel of candidateModels) {
+        // If we already streamed content from a previous model, stop cascading
+        if (anyContentStreamed) break;
+
         const nvidiaApiKey = getNvidiaKeyForModel(targetModel, userNvidiaKey);
         if (!nvidiaApiKey) continue;
 
@@ -920,67 +897,107 @@ Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertiseme
             messages: formattedMessages.map((m) => ({ role: m.role, content: m.content })),
             temperature: 0.6,
             top_p: 0.95,
-            max_tokens: 1500,
+            max_tokens: maxTokens || max_tokens || 8192,
             stream: true,
           };
 
           sendEvent('status', {
             provider: 'nvidia',
             model: targetModel,
-            thinking: `Connecting to High-Throughput NVIDIA NIM (${targetModel})...`,
+            thinking: `Connecting to NVIDIA NIM (${targetModel})...`,
           });
 
-          // 3.5s timeout signal for initial TTFT to guarantee immediate sub-2s streaming cascade
+          logPerf('preProcessingDone');
+
+          // AbortController so we can cancel mid-stream if needed
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+
           const nvidiaRes = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${nvidiaApiKey}`,
+              'Authorization': `Bearer ${nvidiaApiKey}`,
+              'Connection': 'keep-alive',
             },
             body: JSON.stringify(requestBody),
-            signal: AbortSignal.timeout(3500),
+            signal: controller.signal,
           });
+
+          clearTimeout(timeoutId);
 
           if (nvidiaRes.ok && nvidiaRes.body) {
             const reader = nvidiaRes.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
             let fullText = '';
+            let streamError = false;
 
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || '';
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
 
-              for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed || trimmed.startsWith(':')) continue;
-                if (trimmed === 'data: [DONE]') continue;
-                if (trimmed.startsWith('data: ')) {
-                  try {
-                    const json = JSON.parse(trimmed.slice(6));
-                    const delta = json.choices?.[0]?.delta;
-                    const chunkText = delta?.content || '';
-                    const reasoningText = delta?.reasoning || delta?.reasoning_content || '';
+                for (const line of lines) {
+                  const trimmed = line.trim();
+                  if (!trimmed || trimmed.startsWith(':')) continue;
+                  if (trimmed === 'data: [DONE]') continue;
+                  if (trimmed.startsWith('data: ')) {
+                    try {
+                      const json = JSON.parse(trimmed.slice(6));
+                      const delta = json.choices?.[0]?.delta;
+                      const chunkText = delta?.content || '';
+                      const reasoningText = delta?.reasoning || delta?.reasoning_content || '';
 
-                    if (reasoningText) {
-                      sendEvent('thinking', { content: reasoningText });
+                      if (reasoningText) {
+                        sendEvent('thinking', { content: reasoningText });
+                        // For reasoning-only models (e.g. inkling) that return null content,
+                        // use the reasoning text as the response content too
+                        if (!chunkText) {
+                          fullText += reasoningText;
+                          if (!anyContentStreamed) logPerf('firstTokenReceived');
+                          anyContentStreamed = true;
+                          sendEvent('chunk', { text: reasoningText });
+                        }
+                      }
+                      if (chunkText) {
+                        fullText += chunkText;
+                        if (!anyContentStreamed) logPerf('firstTokenReceived');
+                        anyContentStreamed = true;
+                        sendEvent('chunk', { text: chunkText });
+                      }
+                    } catch (e) {
+                      // Ignore individual chunk parse errors
                     }
-                    if (chunkText) {
-                      fullText += chunkText;
-                      sendEvent('chunk', { text: chunkText });
-                    }
-                  } catch (e) {
-                    // Ignore chunk JSON parse errors
                   }
                 }
               }
+            } catch (streamErr: any) {
+              // Mid-stream disconnection
+              streamError = true;
+              console.log(`NVIDIA NIM mid-stream error (${targetModel}): ${streamErr?.message}`);
+              if (anyContentStreamed) {
+                // Content was already sent — end gracefully, don't append errors
+                const durationMs = Date.now() - startTime;
+                const tokenCount = Math.ceil(fullText.length / 4);
+                sendEvent('done', {
+                  latencyMs: durationMs,
+                  tokensPerSec: Math.round((tokenCount / (durationMs / 1000 || 0.001)) * 10) / 10,
+                  modelUsed: targetModel,
+                  providerUsed: 'nvidia',
+                });
+                logPerf('streamComplete');
+                console.log(`⚡ PERF [${targetModel || 'unknown'}]: ${JSON.stringify(perfLog)}`);
+                return res.end();
+              }
+              lastApiError = `NVIDIA NIM mid-stream error (${targetModel}): ${streamErr?.message}`;
             }
 
-            if (fullText.trim().length > 0) {
+            if (!streamError && fullText.trim().length > 0) {
               const durationMs = Date.now() - startTime;
               const tokenCount = Math.ceil(fullText.length / 4);
               sendEvent('done', {
@@ -989,6 +1006,8 @@ Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertiseme
                 modelUsed: targetModel,
                 providerUsed: 'nvidia',
               });
+              logPerf('streamComplete');
+              console.log(`⚡ PERF [${targetModel || 'unknown'}]: ${JSON.stringify(perfLog)}`);
               return res.end();
             }
           } else {
@@ -998,22 +1017,40 @@ Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertiseme
               const jsonErr = JSON.parse(errText);
               parsedError = jsonErr.detail || jsonErr.message || jsonErr.error?.message || errText;
             } catch {}
-            console.log(`NVIDIA API model ${targetModel} notice (${nvidiaRes.status}): ${parsedError}. Trying next candidate...`);
+            lastApiError = `NVIDIA NIM API (${nvidiaRes.status}): ${parsedError.slice(0, 120)}`;
+            console.log(`NVIDIA API model ${targetModel} notice (${nvidiaRes.status}).`);
           }
         } catch (nvidiaErr: any) {
-          console.log(`NVIDIA NIM stream model ${targetModel} cascade: ${nvidiaErr?.message || 'Connection timeout'}. Trying next candidate...`);
+          if (anyContentStreamed) {
+            // Already sent content, close cleanly
+            const durationMs = Date.now() - startTime;
+            sendEvent('done', { latencyMs: durationMs, tokensPerSec: 0, modelUsed: targetModel, providerUsed: 'nvidia' });
+            logPerf('streamComplete');
+            console.log(`⚡ PERF [${targetModel || 'unknown'}]: ${JSON.stringify(perfLog)}`);
+            return res.end();
+          }
+          lastApiError = `NVIDIA NIM Error (${targetModel}): ${nvidiaErr?.message || 'Connection failed'}`;
+          console.log(`NVIDIA NIM cascade (${targetModel}): ${nvidiaErr?.message}`);
         }
       }
+    }
+
+    // If content already streamed but done event wasn't sent (edge case), close now
+    if (anyContentStreamed) {
+      const durationMs = Date.now() - startTime;
+      sendEvent('done', { latencyMs: durationMs, tokensPerSec: 0, modelUsed: 'nvidia', providerUsed: 'nvidia' });
+      logPerf('streamComplete');
+      console.log(`⚡ PERF [unknown]: ${JSON.stringify(perfLog)}`);
+      return res.end();
     }
 
     // B. Gemini Provider Stream (Fallback 1)
     const geminiKey = userGeminiKey || process.env.GEMINI_API_KEY;
     if (geminiKey) {
       try {
-        const client = new GoogleGenAI({
-          apiKey: geminiKey,
-          httpOptions: { headers: { 'User-Agent': 'aistudio-build' } },
-        });
+        const client = (geminiKey === process.env.GEMINI_API_KEY && genAI) 
+          ? genAI 
+          : new GoogleGenAI({ apiKey: geminiKey, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
 
         const geminiModel = model.includes('pro') ? 'gemini-3.1-pro-preview' : 'gemini-3.6-flash';
 
@@ -1034,6 +1071,7 @@ Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertiseme
           const text = chunk.text || '';
           if (text) {
             fullText += text;
+            anyContentStreamed = true;
             sendEvent('chunk', { text });
           }
         }
@@ -1048,8 +1086,47 @@ Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertiseme
         });
         return res.end();
       } catch (geminiErr: any) {
+        if (anyContentStreamed) {
+          const durationMs = Date.now() - startTime;
+          sendEvent('done', { latencyMs: durationMs, tokensPerSec: 0, modelUsed: 'gemini', providerUsed: 'gemini' });
+          return res.end();
+        }
+        lastApiError = `Gemini API Error: ${geminiErr?.message || 'Authentication failed'}`;
         console.warn(`Gemini fallback failed: ${geminiErr?.message}`);
       }
+    }
+
+    // If user provided a custom key but ALL providers failed with zero content
+    if (!anyContentStreamed && (userNvidiaKey || userGeminiKey || lastApiError)) {
+      sendEvent('status', {
+        provider: 'api-error',
+        model: 'API Connection Diagnostic',
+        thinking: 'API authentication or network error detected...',
+      });
+
+      const errorMsg = `⚠️ **API Connection Error**\n\n` +
+        `All configured API providers failed. Last error:\n\n` +
+        `> \`${lastApiError || 'API key missing or invalid'}\`\n\n` +
+        `**Possible causes:**\n` +
+        `- API key may have expired or hit its rate limit\n` +
+        `- The selected model may be temporarily unavailable\n` +
+        `- Network connectivity issue to NVIDIA NIM servers\n\n` +
+        `**Try:** Open Settings → Re-enter your API Key → Test Connection`;
+
+      const words = errorMsg.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        sendEvent('chunk', { text: (i === 0 ? '' : ' ') + words[i] });
+        await new Promise((r) => setTimeout(r, 8));
+      }
+
+      const durationMs = Date.now() - startTime;
+      sendEvent('done', {
+        latencyMs: durationMs,
+        tokensPerSec: 50,
+        modelUsed: 'API Diagnostic',
+        providerUsed: 'system',
+      });
+      return res.end();
     }
 
     // C. F.R.I.D.A.Y. Core Local Response Matrix (Guaranteed Instant Fallback)

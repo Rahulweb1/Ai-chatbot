@@ -200,33 +200,18 @@ export function ChatView({
     }
   }, [isVoiceModeActive]);
 
-  // Handle voice auto playback when a streaming message finishes
+  // Old post-stream TTS playback block removed to fix double-voice issue.
+  // Real-time streaming TTS is now handled exclusively in App.tsx handleSendMessage.
   const prevStreamingRef = useRef<boolean>(false);
   useEffect(() => {
-    if (prevStreamingRef.current && !isStreaming && isVoiceModeActive) {
-      const lastMsg = activeConv?.messages[activeConv.messages.length - 1];
-      if (lastMsg && lastMsg.role === 'assistant' && lastMsg.content) {
-        if (onSpeechStateChangeRef.current) onSpeechStateChangeRef.current('speaking');
-        playTtsAudio(lastMsg.content, {
-          lang: inputLang,
-          voiceId: settings.voiceVoice,
-          speed: settings.voiceSpeed || 1.5,
-          onVolumeChange: (vol) => {
-            if (onSpeechStateChangeRef.current) onSpeechStateChangeRef.current('speaking', vol);
-          },
-          onEnd: () => {
-            if (onSpeechStateChangeRef.current) onSpeechStateChangeRef.current('idle', 0);
-          },
-          onError: () => {
-            if (onSpeechStateChangeRef.current) onSpeechStateChangeRef.current('idle', 0);
-          },
-        });
-      }
-    } else if (!prevStreamingRef.current && isStreaming && isVoiceModeActive) {
+    if (!prevStreamingRef.current && isStreaming && isVoiceModeActive) {
       if (onSpeechStateChangeRef.current) onSpeechStateChangeRef.current('thinking');
+    } else if (prevStreamingRef.current && !isStreaming) {
+       // Just reset arc ring state when stream finishes
+       if (onSpeechStateChangeRef.current) onSpeechStateChangeRef.current('idle', 0);
     }
     prevStreamingRef.current = isStreaming;
-  }, [isStreaming, isVoiceModeActive, activeConv?.messages, settings.voiceSpeed, settings.voiceVoice, inputLang]);
+  }, [isStreaming, isVoiceModeActive]);
 
   const handleSend = () => {
     if ((!inputText.trim() && attachments.length === 0) || isStreaming) return;
@@ -452,6 +437,25 @@ export function ChatView({
               </select>
             </div>
 
+            {/* Voice TTS Speed Selector */}
+            <div className="flex items-center gap-1 bg-[#030712] px-2 py-0.5 rounded border border-[#12275C] text-[11px] font-mono">
+              <FastForward className="w-3 h-3 text-[#5B9CFF]" />
+              <span className="text-[#6B7A99]">Speed:</span>
+              <select
+                value={settings.voiceSpeed || 1.25}
+                onChange={(e) => onSaveSettings && onSaveSettings({ ...settings, voiceSpeed: parseFloat(e.target.value) })}
+                className="bg-transparent text-[#5B9CFF] font-bold focus:outline-none cursor-pointer"
+                title="Voice TTS Playback Speed"
+              >
+                <option value="0.75" className="bg-[#0A1128] text-white">0.75x Slow</option>
+                <option value="1.0" className="bg-[#0A1128] text-white">1.0x Normal</option>
+                <option value="1.25" className="bg-[#0A1128] text-white">1.25x Fast</option>
+                <option value="1.5" className="bg-[#0A1128] text-white">1.5x Speed</option>
+                <option value="1.75" className="bg-[#0A1128] text-white">1.75x Fast+</option>
+                <option value="2.0" className="bg-[#0A1128] text-white">2.0x Ultra ⚡</option>
+              </select>
+            </div>
+
             {/* Manual Model Select */}
             <select
               value={selectedModelOverride}
@@ -610,6 +614,7 @@ export function ChatView({
                   key={msg.id}
                   message={msg}
                   lang={inputLang}
+                  voiceSpeed={settings.voiceSpeed}
                   onRegenerate={() => {
                     if (activeConv.messages.length > 1) {
                       const lastUserMsg = [...activeConv.messages].reverse().find((m) => m.role === 'user');
