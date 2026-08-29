@@ -203,39 +203,49 @@ export function ChatView({
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    const clipboardData = e.clipboardData;
-    if (!clipboardData) return;
+    try {
+      const clipboardData = e.clipboardData;
+      if (!clipboardData || !clipboardData.items) return;
 
-    const items = clipboardData.items;
-    let hasImage = false;
+      const items = clipboardData.items;
+      let hasImage = false;
 
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.indexOf('image') !== -1) {
-        hasImage = true;
-        const file = item.getAsFile();
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const url = event.target?.result as string;
-            setAttachments((prev) => [
-              ...prev,
-              {
-                id: 'att_paste_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-                name: file.name || `Pasted Image ${new Date().toLocaleTimeString()}`,
-                type: 'image',
-                url,
-                size: file.size,
-              },
-            ]);
-          };
-          reader.readAsDataURL(file);
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item && item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            hasImage = true;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              try {
+                const url = event.target?.result as string;
+                if (url) {
+                  setAttachments((prev) => [
+                    ...(prev || []),
+                    {
+                      id: 'att_paste_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                      name: file.name || `Pasted Image ${new Date().toLocaleTimeString()}`,
+                      type: 'image',
+                      url,
+                      size: file.size || 0,
+                    },
+                  ]);
+                }
+              } catch (err) {
+                console.warn('Image paste load error:', err);
+              }
+            };
+            reader.readAsDataURL(file);
+          }
         }
       }
-    }
 
-    if (hasImage) {
-      e.preventDefault();
+      if (hasImage) {
+        e.preventDefault();
+      }
+    } catch (err) {
+      console.warn('handlePaste error:', err);
     }
   };
 
@@ -246,65 +256,93 @@ export function ChatView({
     setIsDragging(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDragLeave = () => {
     setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (!files || files.length === 0) return;
+    try {
+      e.preventDefault();
+      setIsDragging(false);
+      const files = e.dataTransfer.files;
+      if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file: File) => {
-      const reader = new FileReader();
-      const isImage = file.type.startsWith('image/');
+      Array.from(files).forEach((file: File) => {
+        if (!file) return;
+        const reader = new FileReader();
+        const isImage = file.type && file.type.startsWith('image/');
 
-      reader.onload = (event) => {
-        const url = event.target?.result as string;
-        setAttachments((prev) => [
-          ...prev,
-          {
-            id: 'att_drop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-            name: file.name,
-            type: isImage ? 'image' : 'file',
-            url,
-            size: file.size,
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
+        reader.onload = (event) => {
+          try {
+            const url = event.target?.result as string;
+            if (url) {
+              setAttachments((prev) => [
+                ...(prev || []),
+                {
+                  id: 'att_drop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                  name: file.name || 'Dropped file',
+                  type: isImage ? 'image' : 'file',
+                  url,
+                  size: file.size || 0,
+                },
+              ]);
+            }
+          } catch (err) {
+            console.warn('Drop load error:', err);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    } catch (err) {
+      console.warn('handleDrop error:', err);
+    }
   };
 
   const toggleMic = () => {
-    if (isListening) {
-      if (speechRef.current) speechRef.current.stop();
+    try {
+      if (isListening) {
+        if (speechRef.current) {
+          try { speechRef.current.stop(); } catch {}
+        }
+        setIsListening(false);
+        if (onSpeechStateChange) onSpeechStateChange('idle');
+      } else {
+        stopSpeech();
+        if (onSpeechStateChange) onSpeechStateChange('listening');
+        const recognizer = createSpeechRecognizer(
+          (transcript, isFinal) => {
+            setInputText((prev) => (isFinal ? (prev ? prev + ' ' + transcript : transcript) : transcript));
+          },
+          (err) => {
+            console.warn('Speech recognition notice:', err);
+            setIsListening(false);
+            if (onSpeechStateChange) onSpeechStateChange('idle');
+          },
+          () => {
+            setIsListening(false);
+            if (onSpeechStateChange) onSpeechStateChange('idle');
+          },
+          inputLang
+        );
+        speechRef.current = recognizer;
+        if (recognizer) {
+          try {
+            recognizer.start();
+            setIsListening(true);
+          } catch (startErr) {
+            console.warn('Speech recognition start failed:', startErr);
+            setIsListening(false);
+            if (onSpeechStateChange) onSpeechStateChange('idle');
+          }
+        } else {
+          setIsListening(false);
+          if (onSpeechStateChange) onSpeechStateChange('idle');
+        }
+      }
+    } catch (err) {
+      console.warn('toggleMic error:', err);
       setIsListening(false);
       if (onSpeechStateChange) onSpeechStateChange('idle');
-    } else {
-      stopSpeech();
-      if (onSpeechStateChange) onSpeechStateChange('listening');
-      speechRef.current = createSpeechRecognizer(
-        (transcript, isFinal) => {
-          setInputText((prev) => (isFinal ? (prev ? prev + ' ' + transcript : transcript) : transcript));
-        },
-        (err) => {
-          console.error('Speech error:', err);
-          setIsListening(false);
-          if (onSpeechStateChange) onSpeechStateChange('idle');
-        },
-        () => {
-          setIsListening(false);
-          if (onSpeechStateChange) onSpeechStateChange('idle');
-        },
-        inputLang
-      );
-      if (speechRef.current) {
-        speechRef.current.start();
-        setIsListening(true);
-      }
     }
   };
 
