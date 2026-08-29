@@ -342,11 +342,12 @@ app.get('/api/telemetry', (req, res) => {
 });
 
 // Helper function to synthesize instant intelligent ChatGPT responses
-function generateIntelligentChatGPTResponse(userPrompt: string, searchResults: any[] = [], isTamil: boolean = false): string {
+function generateIntelligentChatGPTResponse(userPrompt: string, searchResults: any[] = [], isTamil: boolean = false, allMessages: any[] = []): string {
   const promptLower = userPrompt.toLowerCase();
+  const context = allMessages.map((m) => m?.content || '').join(' ').toLowerCase();
 
   // 1. Loki Episode count query
-  if (promptLower.includes('loki') && (promptLower.includes('episode') || promptLower.includes('episide') || promptLower.includes('how many') || promptLower.includes('numbers of episode') || promptLower.includes('season'))) {
+  if ((promptLower.includes('loki') || context.includes('loki')) && (promptLower.includes('episode') || promptLower.includes('episide') || promptLower.includes('how many') || promptLower.includes('numbers of episode') || promptLower.includes('season') || promptLower.includes('how much'))) {
     if (isTamil) {
       return `மார்வெல் (Marvel) **Loki** தொடரில் மொத்தம் **12 எபிசோடுகள் (12 Episodes)** உள்ளன:\n\n` +
         `- **சீசன் 1 (Season 1):** 6 எபிசோடுகள் (June 9, 2021)\n` +
@@ -1271,7 +1272,7 @@ Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertiseme
       thinking: 'Synthesizing response...',
     });
 
-    const fallbackResponse = generateIntelligentChatGPTResponse(lastUserMessage, searchResults || [], isTamilMode);
+    const fallbackResponse = generateIntelligentChatGPTResponse(lastUserMessage, searchResults || [], isTamilMode, messages);
     const words = fallbackResponse.split(' ');
 
     for (let i = 0; i < words.length; i++) {
