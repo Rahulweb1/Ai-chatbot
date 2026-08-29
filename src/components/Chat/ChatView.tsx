@@ -202,6 +202,82 @@ export function ChatView({
     });
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    const items = clipboardData.items;
+    let hasImage = false;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        hasImage = true;
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const url = event.target?.result as string;
+            setAttachments((prev) => [
+              ...prev,
+              {
+                id: 'att_paste_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                name: file.name || `Pasted Image ${new Date().toLocaleTimeString()}`,
+                type: 'image',
+                url,
+                size: file.size,
+              },
+            ]);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+
+    if (hasImage) {
+      e.preventDefault();
+    }
+  };
+
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file: File) => {
+      const reader = new FileReader();
+      const isImage = file.type.startsWith('image/');
+
+      reader.onload = (event) => {
+        const url = event.target?.result as string;
+        setAttachments((prev) => [
+          ...prev,
+          {
+            id: 'att_drop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            name: file.name,
+            type: isImage ? 'image' : 'file',
+            url,
+            size: file.size,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const toggleMic = () => {
     if (isListening) {
       if (speechRef.current) speechRef.current.stop();
@@ -395,13 +471,18 @@ export function ChatView({
                 {attachments.map((att) => (
                   <div
                     key={att.id}
-                    className="flex items-center gap-2 px-3 py-1 rounded-lg bg-[#2f2f2f] border border-[#383838] text-xs text-white"
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#2f2f2f] border border-[#383838] text-xs text-white shadow-sm"
                   >
-                    <FileText className="w-3.5 h-3.5 text-white" />
-                    <span className="truncate max-w-[140px] font-mono">{att.name}</span>
+                    {att.type === 'image' ? (
+                      <img src={att.url} alt="thumbnail" className="w-6 h-6 rounded object-cover border border-[#555555]" />
+                    ) : (
+                      <FileText className="w-3.5 h-3.5 text-white" />
+                    )}
+                    <span className="truncate max-w-[140px] text-xs">{att.name}</span>
                     <button
                       onClick={() => setAttachments(attachments.filter((a) => a.id !== att.id))}
-                      className="text-[#8e8e8e] hover:text-white ml-1"
+                      className="text-[#8e8e8e] hover:text-white hover:bg-[#383838] rounded p-0.5 ml-1 transition-colors"
+                      title="Remove attachment"
                     >
                       ×
                     </button>
@@ -416,6 +497,7 @@ export function ChatView({
                 ref={fileInputRef}
                 onChange={handleFileUpload}
                 className="hidden"
+                accept="image/*,.pdf,.txt,.md,.json,.js,.ts,.py,.csv"
                 multiple
               />
 
@@ -455,7 +537,8 @@ export function ChatView({
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder="Message ChatGPT..."
+                onPaste={handlePaste}
+                placeholder="Message ChatGPT or paste (Ctrl+V) images..."
                 className="bg-transparent border-0 outline-none text-white text-sm placeholder-[#737373] flex-1 font-sans resize-none py-1.5 min-h-[28px] max-h-36 no-scrollbar"
                 rows={1}
               />

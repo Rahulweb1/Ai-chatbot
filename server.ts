@@ -345,7 +345,21 @@ app.get('/api/telemetry', (req, res) => {
 function generateIntelligentChatGPTResponse(userPrompt: string, searchResults: any[] = [], isTamil: boolean = false): string {
   const promptLower = userPrompt.toLowerCase();
 
-  // 1. Release Date for Avengers: Doomsday
+  // 1. Loki Episode count query
+  if (promptLower.includes('loki') && (promptLower.includes('episode') || promptLower.includes('episide') || promptLower.includes('how many') || promptLower.includes('numbers of episode') || promptLower.includes('season'))) {
+    if (isTamil) {
+      return `மார்வெல் (Marvel) **Loki** தொடரில் மொத்தம் **12 எபிசோடுகள் (12 Episodes)** உள்ளன:\n\n` +
+        `- **சீசன் 1 (Season 1):** 6 எபிசோடுகள் (June 9, 2021)\n` +
+        `- **சீசன் 2 (Season 2):** 6 எபிசோடுகள் (October 5, 2023)\n\n` +
+        `ஒவ்வொரு சீசனுக்கும் தலா 6 எபிசோடுகள் வீதம் 2 சீசன்களில் மொத்தம் 12 எபிசோடுகள் வெளியாகியுள்ளன.`;
+    }
+    return `Marvel's **Loki** series consists of a total of **12 episodes** across **2 seasons** (6 episodes per season):\n\n` +
+      `### Episode Breakdown:\n` +
+      `- **Season 1 (2021):** 6 Episodes (*Glorious Purpose, The Variant, Lamentis, The Nexus Event, Journey into Mystery, For All Time. Always.*)\n` +
+      `- **Season 2 (2023):** 6 Episodes (*Ouroboros, Breaking Brad, 1893, Heart of the TVA, Science/Fiction, Glorious Purpose*)`;
+  }
+
+  // 2. Release Date for Avengers: Doomsday
   if (promptLower.includes('doomsday') && (promptLower.includes('date') || promptLower.includes('release') || promptLower.includes('relese') || promptLower.includes('when') || promptLower.includes('tell'))) {
     if (isTamil) {
       return `**அவெஞ்சர்ஸ்: டூம்ஸ்டே (Avengers: Doomsday)** திரைப்படம் அதிகாரப்பூர்வமாக **டிசம்பர் 18, 2026 (18 Dec, 2026)** அன்று திரையரங்குகளில் வெளியாகிறது (ஆரம்ப வெளியீட்டு கட்டம்: மே 1, 2026).`;
