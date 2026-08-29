@@ -353,7 +353,31 @@ function generateIntelligentChatGPTResponse(userPrompt: string, searchResults: a
     return `**Avengers: Doomsday** is scheduled to be released in theaters on **December 18, 2026** (initial theatrical release window: May 1, 2026).`;
   }
 
-  // 2. Specific query for "hi what i do rahul" / "rahul"
+  // 2. Kang in Loki
+  if (promptLower.includes('kang') || (promptLower.includes('loki') && (promptLower.includes('villain') || promptLower.includes('villaon') || promptLower.includes('hero') || promptLower.includes('season 2') || promptLower.includes('seasn 2')))) {
+    if (isTamil) {
+      return `மார்வெல் (Marvel) **Loki** தொடரில் **காங் (Kang the Conqueror)** ஒரு **முக்கிய வில்லன் (Villain / Antagonist)** ஆவார்.\n\n` +
+        `### முக்கிய தகவல்கள்:\n` +
+        `- **Loki Season 1 ("He Who Remains")**: காலவரிசையை கட்டுப்படுத்தும் காங் வேரியண்ட். இவரைக் கொன்றதால் மல்டிவர்ஸ் கிளைகள் உருவாகின.\n` +
+        `- **Loki Season 2 ("Victor Timely")**: 19-ஆம் நூற்றாண்டு காங் மாறுபாடு. இறுதியில் லோகி பிரபஞ்சத்தை காப்பாற்ற **God of Stories** ஆக மாறுகிறார்.`;
+    }
+    return `In Marvel's **Loki** series, **Kang the Conqueror** is portrayed as a **Villain / Central Antagonist** across multiple multiversal variants.\n\n` +
+      `### Key Details in Loki:\n` +
+      `- **Season 1 ("He Who Remains"):** Created the TVA to isolate the Sacred Timeline and prevent a destructive Multiversal War against his conqueror variants.\n` +
+      `- **Season 2 ("Victor Timely"):** A 19th-century inventor variant. In the finale, Loki sacrifices himself to become the **God of Stories**, holding the multiverse timelines together to stop Kang's warlord variants from destroying existence.`;
+  }
+
+  // 3. Spider-Man Brand New Day
+  if (promptLower.includes('spiderman') || promptLower.includes('spider-man') || promptLower.includes('spider man')) {
+    if (promptLower.includes('brand new day')) {
+      if (isTamil) {
+        return `**ஸ்பைடர்-மேன்: பிராண்ட் நியூ டே (Spider-Man: Brand New Day)** என்பது 2008-ல் மார்வெல் காமிக்ஸ் வெளியிட்ட கதைக்களம் (*The Amazing Spider-Man* #546). இதில் பீட்டர் பார்க்கரின் ரகசிய அடையாளம் உலகிற்கு மறக்கடிக்கப்பட்டு, மிஸ்டர் நெகடிவ் மற்றும் மெனஸ் போன்ற புதிய வில்லன்கள் அறிமுகப்படுத்தப்பட்டனர்.`;
+      }
+      return `**Spider-Man: Brand New Day** is a 2008 Marvel Comics storyline starting from *The Amazing Spider-Man* #546 by Dan Slott and collaborators. It established a fresh status quo for Peter Parker with his secret identity restored and introduced new villains like **Mister Negative** and **Menace**.`;
+    }
+  }
+
+  // 4. Specific query for "hi what i do rahul" / "rahul"
   if (promptLower.includes('rahul') || (promptLower.includes('hi') && promptLower.includes('what') && promptLower.includes('do'))) {
     if (isTamil) {
       return `வணக்கம் ராகுல்! நான் உங்களின் AI உதவியாளர். நீங்கள் என்னிடம் கேள்விகள் கேட்கலாம், புரோகிராமிங் கோட் எழுதலாம், அல்லது குரல் வழியே பேசலாம். உங்களுக்கு இன்று நான் எவ்வாறு உதவ வேண்டும்?`;
