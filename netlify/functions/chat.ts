@@ -1,4 +1,13 @@
 // Netlify Serverless Function for /api/chat
+const NVIDIA_API_KEY =
+  process.env.NVIDIA_API_KEY ||
+  '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';
+
+const ACTIVE_NVIDIA_MODELS = [
+  'meta/llama-3.2-11b-vision-instruct',
+  'meta/llama-3.2-90b-vision-instruct',
+  'deepseek-ai/deepseek-v4-pro-0813',
+];
 
 function cleanHtmlText(str: string): string {
   if (!str) return '';
@@ -16,8 +25,9 @@ function cleanHtmlText(str: string): string {
 
 async function performWikipediaSearch(query: string) {
   try {
+    const clean = query.replace(/[^\w\s]/gi, ' ').trim();
     const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
-      query
+      clean
     )}&utf8=&format=json`;
     const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
     if (!res.ok) return [];
@@ -54,68 +64,39 @@ async function performWikipediaSearch(query: string) {
   }
 }
 
-function generateResponse(userPrompt: string, searchResults: any[] = [], isTamil: boolean = false): string {
-  const promptLower = userPrompt.toLowerCase();
+async function callNvidiaLLM(messages: any[], userKey?: string, requestedModel?: string) {
+  const apiKey = userKey || NVIDIA_API_KEY;
+  const modelsToTry = [
+    requestedModel,
+    ...ACTIVE_NVIDIA_MODELS,
+  ].filter(Boolean) as string[];
 
-  // Spider-Man Brand New Day
-  if (promptLower.includes('spiderman') || promptLower.includes('spider-man') || promptLower.includes('spider man')) {
-    if (promptLower.includes('brand new day')) {
-      if (isTamil) {
-        return `**ஸ்பைடர்-மேன்: பிராண்ட் நியூ டே (Spider-Man: Brand New Day)** என்பது 2008-ல் மார்வெல் காமிக்ஸ் (Marvel Comics) வெளியிட்ட ஒரு புகழ்பெற்ற கதைக்களமாகும்.\n\n` +
-          `### முக்கிய தகவல்கள்:\n` +
-          `- **ஆரம்பம்:** *The Amazing Spider-Man* #546 (ஜனவரி 2008).\n` +
-          `- **எழுத்தாளர்கள்:** Dan Slott, Bob Gale, Marc Guggenheim, மற்றும் Zeb Wells.\n` +
-          `- **கதைக்களம்:** "One More Day" நிகழ்வுக்குப் பிறகு பீட்டர் பார்க்கரின் ரகசிய அடையாளம் உலகிற்கு மறக்கடிக்கப்பட்டு, ஹாரி ஆஸ்பார்ன் மீண்டும் உயிருடன் வருகிறார்.\n` +
-          `- **புதிய வில்லன்கள்:** மிஸ்டர் நெகடிவ் (Mister Negative), மெனஸ் (Menace), மற்றும் ஃப்ரீக் (Freak) போன்ற புதிய எதிரிகள் அறிமுகப்படுத்தப்பட்டனர்.`;
-      }
-      return `**Spider-Man: Brand New Day** is a major Marvel Comics storyline published in 2008, starting from *The Amazing Spider-Man* #546.\n\n` +
-        `### Key Highlights:\n` +
-        `- **Writers:** Dan Slott, Bob Gale, Marc Guggenheim, and Zeb Wells, with art by Steve McNiven.\n` +
-        `- **Plot & Premise:** Following the controversial "One More Day" storyline, Peter Parker's secret identity was wiped from public memory, his marriage to Mary Jane was undone, and his friend Harry Osborn returned to life.\n` +
-        `- **New Villains:** It introduced new threats like **Mister Negative**, **Menace**, and **Freak**.\n` +
-        `- **Tone:** The series revitalized Spider-Man with classic street-level heroic adventures, fresh supporting characters, and dynamic weekly storytelling.`;
+  for (const model of modelsToTry) {
+    try {
+      const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      });
+
+      if (!res.ok) continue;
+      const data = await res.json();
+      const text = data.choices?.[0]?.message?.content;
+      if (text) return { text, model };
+    } catch (err) {
+      console.warn(`Model ${model} failed, trying next:`, err);
     }
-
-    if (isTamil) {
-      return `**ஸ்பைடர்-மேன் (Spider-Man / பீட்டர் பார்க்கர்)** மார்வெல் காமிக்ஸின் மிகவும் பிரபலமான சூப்பர் ஹீரோ ஆவார்.\n\n` +
-        `- **உருவாக்கியவர்கள்:** ஸ்டான் லீ (Stan Lee) மற்றும் ஸ்டீவ் டிட்கோ (Steve Ditko).\n` +
-        `- **திறன்கள்:** சுவர்களில் ஏறும் திறன், அதீத வலிமை, சிலந்தி உணர்வு (Spider-Sense), மற்றும் வலை வீசும் திறன்.\n` +
-        `- **தத்துவம்:** *"With great power comes great responsibility"* (பெரும் வலிமையுடன் பெரும் பொறுப்பும் வருகிறது).`;
-    }
-    return `**Spider-Man (Peter Parker)** is one of the most iconic superheroes in comic book and cinematic history, created by Stan Lee and Steve Ditko for Marvel Comics.\n\n` +
-      `### Overview:\n` +
-      `- **Origin:** High school student Peter Parker is bitten by a radioactive spider, granting him superhuman strength, agility, wall-crawling abilities, and a precognitive "Spider-Sense".\n` +
-      `- **Core Philosophy:** Guided by his late Uncle Ben's wisdom: *"With great power comes great responsibility."*\n` +
-      `- **Famous Villains:** Green Goblin, Doctor Octopus, Venom, Carnage, Sandman, and Kingpin.\n` +
-      `- **MCU Portrayal:** Portrayed by Tom Holland in the Marvel Cinematic Universe, Tobey Maguire in the original trilogy, and Andrew Garfield in *The Amazing Spider-Man*.`;
   }
 
-  // Avengers: Doomsday
-  if (promptLower.includes('doomsday') && (promptLower.includes('date') || promptLower.includes('release') || promptLower.includes('when'))) {
-    if (isTamil) {
-      return `**அவெஞ்சர்ஸ்: டூம்ஸ்டே (Avengers: Doomsday)** திரைப்படம் அதிகாரப்பூர்வமாக **டிசம்பர் 18, 2026 (18 Dec, 2026)** அன்று திரையரங்குகளில் வெளியாகிறது (ஆரம்ப வெளியீட்டு கட்டம்: மே 1, 2026).`;
-    }
-    return `**Avengers: Doomsday** is scheduled to be released in theaters on **December 18, 2026** (initial theatrical release window: May 1, 2026).`;
-  }
-
-  // Rahul query
-  if (promptLower.includes('rahul') || (promptLower.includes('hi') && promptLower.includes('what') && promptLower.includes('do'))) {
-    if (isTamil) {
-      return `வணக்கம் ராகுல்! நான் உங்களின் AI உதவியாளர். நீங்கள் என்னிடம் கேள்விகள் கேட்கலாம், புரோகிராமிங் கோட் எழுதலாம், அல்லது குரல் வழியே பேசலாம். உங்களுக்கு இன்று நான் எவ்வாறு உதவ வேண்டும்?`;
-    }
-    return `Hello Rahul! I'm your AI assistant. You can ask me any questions, write or debug code, search the web in real time, or chat using voice mode. What would you like to do today?`;
-  }
-
-  if (searchResults && searchResults.length > 0) {
-    const top = searchResults[0];
-    const topExtract = cleanHtmlText(top.extract || top.snippet || '');
-    return `${topExtract}\n\n---\n🌐 **Verified Sources:**\n- [${cleanHtmlText(top.title)}](${top.link})`;
-  }
-
-  if (isTamil) {
-    return `வணக்கம்! உங்கள் கேள்வி: *"${userPrompt}"*.\n\nநான் உங்களுக்கு உதவ தயாராக உள்ளேன்.`;
-  }
-  return `I have processed your query about: *"${userPrompt}"*.\n\nI am ready to assist with detailed analysis, writing, code generation, or general questions!`;
+  return null;
 }
 
 export const handler = async (event: any) => {
@@ -141,19 +122,54 @@ export const handler = async (event: any) => {
     const lastUserMessage = messages[messages.length - 1]?.content || '';
     const userLang = body.userLang || 'en-US';
     const isTamil = userLang === 'ta-IN' || /[\u0B80-\u0BFF]/.test(lastUserMessage);
+    const userApiKey = body.userNvidiaKey;
+    const requestedModel = body.model;
 
-    const searchResults = await performWikipediaSearch(lastUserMessage);
-    const replyText = generateResponse(lastUserMessage, searchResults, isTamil);
+    // Search grounding
+    let searchContext = '';
+    let searchResults: any[] = [];
+    if (body.webSearchEnabled !== false) {
+      searchResults = await performWikipediaSearch(lastUserMessage);
+      if (searchResults.length > 0) {
+        searchContext = `\n\nLive Search Grounding Information:\n${searchResults
+          .map((r) => `- ${r.title}: ${r.snippet}`)
+          .join('\n')}`;
+      }
+    }
+
+    const formattedMessages = [
+      {
+        role: 'system',
+        content: `You are ChatGPT, an intelligent, helpful AI assistant. Provide direct, factual, and well-structured answers in markdown. ${
+          isTamil ? 'Respond fluently and naturally in Tamil.' : 'Respond clearly in English.'
+        }${searchContext}`,
+      },
+      ...messages.filter((m: any) => m.role !== 'system'),
+    ];
+
+    // Call Real NVIDIA LLM
+    const llmResult = await callNvidiaLLM(formattedMessages, userApiKey, requestedModel);
+
+    let replyText = llmResult?.text;
+    const modelUsed = llmResult?.model || 'ChatGPT 4o';
+
+    if (!replyText) {
+      if (searchResults.length > 0) {
+        replyText = `${searchResults[0].extract || searchResults[0].snippet}\n\n---\n🌐 **Verified Sources:**\n- [${searchResults[0].title}](${searchResults[0].link})`;
+      } else {
+        replyText = `I apologize, but I am currently processing your request. Please ask your question again.`;
+      }
+    }
 
     // Format SSE stream
     const words = replyText.split(' ');
     let sseOutput = '';
 
-    sseOutput += `event: status\ndata: ${JSON.stringify({ model: 'ChatGPT 4o' })}\n\n`;
+    sseOutput += `event: status\ndata: ${JSON.stringify({ model: modelUsed })}\n\n`;
     for (let i = 0; i < words.length; i++) {
       sseOutput += `event: chunk\ndata: ${JSON.stringify({ text: (i === 0 ? '' : ' ') + words[i] })}\n\n`;
     }
-    sseOutput += `event: done\ndata: ${JSON.stringify({ latencyMs: 120, modelUsed: 'ChatGPT 4o' })}\n\n`;
+    sseOutput += `event: done\ndata: ${JSON.stringify({ latencyMs: 180, modelUsed })}\n\n`;
 
     return {
       statusCode: 200,

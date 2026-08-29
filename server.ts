@@ -928,9 +928,10 @@ Preserve factual accuracy. Do not hallucinate facts or metrics. Omit advertiseme
       // - minimaxai/minimax-m3: 20s+ timeout, skip
       // Only try user-selected model + 1 fast fallback (no 6-model cascade = no 48s delay)
       const HIGH_THROUGHPUT_NVIDIA_MODELS = [
-        model || 'meta/llama-3.1-8b-instruct',
-        'meta/llama-3.1-8b-instruct',
-        'meta/llama-3.1-70b-instruct',
+        model || 'meta/llama-3.2-11b-vision-instruct',
+        'meta/llama-3.2-11b-vision-instruct',
+        'meta/llama-3.2-90b-vision-instruct',
+        'deepseek-ai/deepseek-v4-pro-0813',
       ];
 
       // De-duplicate model candidates while preserving order
