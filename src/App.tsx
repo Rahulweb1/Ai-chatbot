@@ -289,8 +289,8 @@ export default function App() {
 
     const batchedSetConversations = () => {
       pendingUpdateRef.current = true;
-      if (stateUpdateTimerRef.current) return; // already scheduled
-      stateUpdateTimerRef.current = setTimeout(() => {
+      if (stateUpdateTimerRef.current) return;
+      stateUpdateTimerRef.current = requestAnimationFrame(() => {
         stateUpdateTimerRef.current = null;
         if (pendingUpdateRef.current) {
           pendingUpdateRef.current = false;
@@ -305,7 +305,7 @@ export default function App() {
             })
           );
         }
-      }, 50);
+      });
     };
 
     try {
