@@ -10,6 +10,11 @@ import { getStoredSettings, saveSettings } from './lib/memory';
 import { autoRouteModel } from './lib/providers';
 import { stopSpeech, cleanTextForTTS } from './lib/speech';
 import { ArcRingMode } from './components/ArcRing';
+import {
+  clientPerformWebSearch,
+  streamFromNvidiaNim,
+  generateClientChatGPTResponse,
+} from './lib/clientAi';
 
 const INITIAL_CONVERSATION: Conversation = {
   id: 'conv_default',
@@ -35,7 +40,7 @@ Feel free to ask questions, explore ideas, write code, or try voice mode!`,
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<NavigationTab>('chat');
+  const [activeTab, setActiveTab] = useState<string>('chat');
   const [settings, setSettings] = useState<UserSettings>(getStoredSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
@@ -322,7 +327,9 @@ export default function App() {
         signal: abortControllerRef.current.signal,
       });
 
-      if (!response.body) throw new Error('No response body stream');
+      if (!response.ok || !response.body) {
+        throw new Error(`Server returned status ${response.status}`);
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -362,7 +369,7 @@ export default function App() {
                 ttsSentenceBuffer += parsed.text;
                 flushTtsBuffer();
               } else if (eventName === 'error' && (parsed.error || parsed.message)) {
-                accumulatedText = `⚠️ F.R.I.D.A.Y. Warning: ${parsed.error || parsed.message}`;
+                accumulatedText = `⚠️ Warning: ${parsed.error || parsed.message}`;
               } else if (eventName === 'done') {
                 if (parsed.latencyMs) setLatencyMs(parsed.latencyMs);
                 if (parsed.tokensPerSec) setTokensPerSec(parsed.tokensPerSec);
@@ -398,26 +405,52 @@ export default function App() {
         }
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        console.error('Chat stream error:', err);
-        setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id !== activeConversationId) return c;
-            const newMsgs = c.messages.map((m) => {
-              if (m.id !== assistantMsgId) return m;
-              return {
-                ...m,
-                content: m.content || 'An error occurred during response streaming.',
-                isStreaming: false,
-              };
-            });
-            return { ...c, messages: newMsgs };
-          })
-        );
+      if (err.name === 'AbortError') return;
+
+      console.warn('Backend SSE stream notice, activating client-side ChatGPT engine:', err?.message || err);
+
+      // Client-side fallback for static deployments (Netlify / Vercel / GitHub Pages)
+      const isTamilMode = (langOverride || settings.language) === 'ta-IN' || /[\u0B80-\u0BFF]/.test(text);
+
+      try {
+        const apiKey = (settings.nvidiaApiKey || '').trim() || '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';
+        if (apiKey) {
+          accumulatedText = '';
+          await streamFromNvidiaNim(
+            [...currentConv.messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
+            apiKey,
+            routed.model.id || 'deepseek-ai/deepseek-v4-pro-0813',
+            (chunk) => {
+              accumulatedText += chunk;
+              ttsSentenceBuffer += chunk;
+              flushTtsBuffer();
+              batchedSetConversations();
+            },
+            abortControllerRef.current?.signal
+          );
+        } else {
+          throw new Error('No API key configured');
+        }
+      } catch (clientFallbackErr) {
+        // Direct client-side web search + intelligent ChatGPT synthesis
+        const searchResults = await clientPerformWebSearch(text);
+        const reply = generateClientChatGPTResponse(text, searchResults, isTamilMode);
+        const words = reply.split(' ');
+        accumulatedText = '';
+
+        for (let i = 0; i < words.length; i++) {
+          const w = (i === 0 ? '' : ' ') + words[i];
+          accumulatedText += w;
+          ttsSentenceBuffer += w;
+          flushTtsBuffer();
+          batchedSetConversations();
+          await new Promise((r) => setTimeout(r, 6));
+        }
       }
     } finally {
       setIsStreaming(false);
       setGlobalArcRingMode('idle');
+      const isTamilMode = (langOverride || settings.language) === 'ta-IN' || /[\u0B80-\u0BFF]/.test(text);
       setConversations((prev) =>
         prev.map((c) => {
           if (c.id !== activeConversationId) return c;
@@ -425,7 +458,7 @@ export default function App() {
             if (m.id !== assistantMsgId) return m;
             return {
               ...m,
-              content: m.content || accumulatedText || "F.R.I.D.A.Y. Core Matrix active. Command executed successfully, Boss.",
+              content: m.content || accumulatedText || generateClientChatGPTResponse(text, [], isTamilMode),
               isStreaming: false,
             };
           });

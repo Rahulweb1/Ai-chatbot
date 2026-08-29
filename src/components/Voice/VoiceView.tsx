@@ -324,7 +324,7 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
           messages: [
             {
               role: 'system',
-              content: `You are F.R.I.D.A.Y., a real-time voice AI assistant. Respond ultra-fast in 1-2 short natural sentences. Address user as Boss.`,
+              content: `You are ChatGPT, a real-time voice AI assistant. Respond ultra-fast in 1-2 short natural sentences.`,
             },
             { role: 'user', content: queryText },
           ],
