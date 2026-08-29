@@ -2,14 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Conversation, ChatMessage, UserSettings } from './types';
 import { WindowFrame } from './components/WindowFrame';
 import { ParticleBackground } from './components/ParticleBackground';
-import { Sidebar, NavigationTab } from './components/Sidebar';
+import { Sidebar } from './components/Sidebar';
 import { ChatView } from './components/Chat/ChatView';
-import { VoiceView } from './components/Voice/VoiceView';
-import { TelemetryView } from './components/Telemetry/TelemetryView';
-import { AutomationView } from './components/Automation/AutomationView';
-import { FilesView } from './components/Files/FilesView';
-import { TerminalView } from './components/Terminal/TerminalView';
-import { MemoryView } from './components/Memory/MemoryView';
 import { SettingsModal } from './components/Settings/SettingsModal';
 import { SearchModal } from './components/SearchModal';
 import { getStoredSettings, saveSettings } from './lib/memory';
@@ -19,28 +13,21 @@ import { ArcRingMode } from './components/ArcRing';
 
 const INITIAL_CONVERSATION: Conversation = {
   id: 'conv_default',
-  title: 'F.R.I.D.A.Y. Stark Mark Protocol',
+  title: 'Welcome to ChatGPT',
   createdAt: Date.now(),
   updatedAt: Date.now(),
-  activeProvider: 'nvidia',
-  activeModelId: 'meta/llama-3.1-70b-instruct',
+  activeProvider: 'openai',
+  activeModelId: 'gpt-4o',
   messages: [
     {
       id: 'msg_1',
       role: 'assistant',
-      content: `Greetings Boss! **F.R.I.D.A.Y.** (Female Replacement Intelligent Digital Assistant Youth) Stark Mark OS active and operating at peak capacity.
+      content: `Hello! I'm ChatGPT, your AI assistant. How can I help you today?
 
-I have full Stark System access and high-speed neural capabilities:
-- ⚡ **Stark HUD Matrix**: Sub-15ms neural response pipeline
-- 🎬 **YouTube Search & Launcher**: Direct 1-click video search & launch
-- 💻 **Terminal System Control**: Sandboxed command execution & workspace file management
-- 🗣️ **Real Neural Tamil & English TTS**: Cloud voice synthesis with Arc Reactor amplitude visualizer
-- 🛠️ **Agent Orchestrator**: 6 multi-agent task phase dispatchers
-
-How may I assist you today, Boss?`,
+Feel free to ask questions, explore ideas, write code, or try voice mode!`,
       timestamp: Date.now(),
-      modelUsed: 'meta/llama-3.1-70b-instruct',
-      providerUsed: 'nvidia',
+      modelUsed: 'ChatGPT 4o',
+      providerUsed: 'openai',
       latencyMs: 12,
       tokensPerSec: 110.4,
     },
@@ -203,25 +190,45 @@ export default function App() {
     ttsSpeakingRef.current = false;
     const SENTENCE_END = /[.!?।:;\n]{1,2}\s/;
 
-    // Pick the best available female voice (prefer soft English female)
-    const pickFemaleVoice = (): SpeechSynthesisVoice | null => {
+    // Pick the best available female voice (strictly female only)
+    const pickFemaleVoice = (targetLang: string): SpeechSynthesisVoice | null => {
       if (!('speechSynthesis' in window)) return null;
       const voices = window.speechSynthesis.getVoices();
+      if (targetLang === 'ta-IN') {
+        return (
+          voices.find(
+            (v) =>
+              v.lang.includes('ta') &&
+              (v.name.toLowerCase().includes('female') ||
+                v.name.toLowerCase().includes('pallavi') ||
+                v.name.toLowerCase().includes('ananya'))
+          ) ||
+          voices.find((v) => v.lang.includes('ta')) ||
+          null
+        );
+      }
       const preferredNames = [
         'Microsoft Zira', 'Google UK English Female', 'Google US English Female',
         'Samantha', 'Victoria', 'Karen', 'Moira', 'Veena',
         'Microsoft Susan', 'Microsoft Hazel', 'Microsoft Linda',
       ];
       for (const name of preferredNames) {
-        const v = voices.find(v => v.name.includes(name));
+        const v = voices.find((v) => v.name.includes(name));
         if (v) return v;
       }
       // Fallback: any female-labeled en-US/en-GB voice
-      return voices.find(v =>
-        (v.lang.startsWith('en')) &&
-        (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('zira') ||
-         v.name.toLowerCase().includes('susan') || v.name.toLowerCase().includes('hazel'))
-      ) || voices.find(v => v.lang.startsWith('en')) || null;
+      return (
+        voices.find(
+          (v) =>
+            v.lang.startsWith('en') &&
+            (v.name.toLowerCase().includes('female') ||
+              v.name.toLowerCase().includes('zira') ||
+              v.name.toLowerCase().includes('susan') ||
+              v.name.toLowerCase().includes('hazel'))
+        ) ||
+        voices.find((v) => v.lang.startsWith('en')) ||
+        null
+      );
     };
 
     const speakNextInQueue = () => {
@@ -234,11 +241,12 @@ export default function App() {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utt = new SpeechSynthesisUtterance(clean);
-        utt.lang = langOverride || settings.language || 'en-US';
-        utt.rate = Math.min(2.0, Math.max(0.5, settings.voiceSpeed || 1.1));
-        utt.pitch = 1.1;   // slightly higher pitch for soft female tone
+        const activeLang = langOverride || settings.language || 'en-US';
+        utt.lang = activeLang;
+        utt.rate = Math.min(2.0, Math.max(0.5, settings.voiceSpeed || 1.15));
+        utt.pitch = 1.15;   // higher pitch for soft female tone
         utt.volume = 1.0;
-        const femaleVoice = pickFemaleVoice();
+        const femaleVoice = pickFemaleVoice(activeLang);
         if (femaleVoice) utt.voice = femaleVoice;
         utt.onend = () => {
           ttsSpeakingRef.current = false;
@@ -346,9 +354,7 @@ export default function App() {
             try {
               const parsed = JSON.parse(dataStr);
 
-              if (eventName === 'status' && parsed.thinking) {
-                thinkingText = parsed.thinking;
-              } else if (eventName === 'thinking' && parsed.content) {
+              if (eventName === 'thinking' && parsed.content) {
                 thinkingText = parsed.content;
               } else if (eventName === 'chunk' && parsed.text) {
                 accumulatedText += parsed.text;
@@ -488,67 +494,37 @@ export default function App() {
       <div className="flex-1 flex overflow-hidden z-10 w-full min-h-0 min-w-0">
         {/* Navigation Sidebar */}
         <Sidebar
-          activeTab={activeTab}
-          onSelectTab={(tab) => setActiveTab(tab)}
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          onSelectConversation={setActiveConversationId}
           onNewChat={handleNewConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
-        {/* View Switcher Container */}
-        <main className="flex-1 flex flex-col w-full h-full min-w-0 min-h-0 overflow-hidden relative bg-[#030712]">
-          {activeTab === 'chat' && (
-            <ChatView
-              conversations={conversations}
-              activeConversationId={activeConversationId}
-              onSelectConversation={setActiveConversationId}
-              onNewConversation={handleNewConversation}
-              onDeleteConversation={handleDeleteConversation}
-              onRenameConversation={handleRenameConversation}
-              onSendMessage={handleSendMessage}
-              onStopGeneration={handleStopGeneration}
-              isStreaming={isStreaming}
-              isVoiceModeActive={isVoiceModeActive}
-              onToggleVoiceMode={handleToggleVoiceMode}
-              settings={settings}
-              onSaveSettings={handleSaveSettings}
-              onUpdateMetrics={(lat, tps) => {
-                setLatencyMs(lat);
-                setTokensPerSec(tps);
-              }}
-              onSpeechStateChange={handleSpeechStateChange}
-            />
-          )}
-
-          {activeTab === 'voice' && (
-            <VoiceView
-              settings={settings}
-              onSaveSettings={handleSaveSettings}
-              onSendMessage={handleSendMessage}
-              onSpeechStateChange={handleSpeechStateChange}
-              onSelectTab={(tab) => setActiveTab(tab as NavigationTab)}
-              onNewConversation={handleNewConversation}
-              isVoiceModeActive={isVoiceModeActive}
-            />
-          )}
-
-          {activeTab === 'telemetry' && <TelemetryView />}
-
-          {activeTab === 'automation' && <AutomationView />}
-
-          {activeTab === 'files' && <FilesView />}
-
-          {activeTab === 'terminal' && <TerminalView />}
-
-          {activeTab === 'memory' && <MemoryView />}
-
-          {activeTab === 'settings' && (
-            <div className="flex-1 p-6 overflow-y-auto">
-              <SettingsModal
-                settings={settings}
-                onSaveSettings={handleSaveSettings}
-                onClose={() => setActiveTab('chat')}
-              />
-            </div>
-          )}
+        {/* Main Chat Canvas */}
+        <main className="flex-1 flex flex-col w-full h-full min-w-0 min-h-0 overflow-hidden relative bg-[#212121]">
+          <ChatView
+            conversations={conversations}
+            activeConversationId={activeConversationId}
+            onSelectConversation={setActiveConversationId}
+            onNewConversation={handleNewConversation}
+            onDeleteConversation={handleDeleteConversation}
+            onRenameConversation={handleRenameConversation}
+            onSendMessage={handleSendMessage}
+            onStopGeneration={handleStopGeneration}
+            isStreaming={isStreaming}
+            isVoiceModeActive={isVoiceModeActive}
+            onToggleVoiceMode={handleToggleVoiceMode}
+            settings={settings}
+            onSaveSettings={handleSaveSettings}
+            onUpdateMetrics={(lat, tps) => {
+              setLatencyMs(lat);
+              setTokensPerSec(tps);
+            }}
+            onSpeechStateChange={handleSpeechStateChange}
+          />
         </main>
       </div>
 

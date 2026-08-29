@@ -7,9 +7,9 @@ export interface VoiceOption {
 
 export const PREBUILT_VOICES: VoiceOption[] = [
   { id: 'ta-IN-Standard-A', name: 'Pallavi Neural (Tamil - Soft Female)', lang: 'ta-IN', gender: 'female' },
-  { id: 'ta-IN-Wavenet-A', name: 'Valluvar Neural (Tamil - Warm Male)', lang: 'ta-IN', gender: 'male' },
-  { id: 'en-US-Neural2-F', name: 'F.R.I.D.A.Y. Core (English - Clear Female)', lang: 'en-US', gender: 'female' },
-  { id: 'en-US-Neural2-[#12275C]', name: 'Stark Reactor (English - Deep Male)', lang: 'en-US', gender: 'male' },
+  { id: 'ta-IN-Standard-B', name: 'Ananya Neural (Tamil - Clear Female)', lang: 'ta-IN', gender: 'female' },
+  { id: 'en-US-Neural2-F', name: 'ChatGPT Voice (English - Soft Female)', lang: 'en-US', gender: 'female' },
+  { id: 'en-US-Standard-C', name: 'Samantha Neural (English - Natural Female)', lang: 'en-US', gender: 'female' },
 ];
 
 let globalAudioContext: AudioContext | null = null;
@@ -157,12 +157,37 @@ export async function playTtsAudio(
   } catch (err) {
     console.warn('Real Cloud TTS playback failed, activating Web Speech Synthesis fallback:', err);
     
-    // Web Speech API fallback
+    // Web Speech API fallback (strictly female voice)
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = lang === 'ta-IN' ? 'ta-IN' : 'en-US';
-      utterance.rate = Math.min(2.5, Math.max(0.5, speed || 1.3));
+      utterance.rate = Math.min(2.5, Math.max(0.5, speed || 1.25));
+      utterance.pitch = 1.15; // Soft female voice tone
+
+      const voices = window.speechSynthesis.getVoices();
+      const preferredFemaleNames = [
+        'Microsoft Zira', 'Google UK English Female', 'Google US English Female',
+        'Samantha', 'Victoria', 'Karen', 'Moira', 'Veena', 'Pallavi',
+        'Microsoft Susan', 'Microsoft Hazel', 'Microsoft Linda',
+      ];
+      let selectedFemaleVoice = null;
+      for (const name of preferredFemaleNames) {
+        selectedFemaleVoice = voices.find((v) => v.name.includes(name));
+        if (selectedFemaleVoice) break;
+      }
+      if (!selectedFemaleVoice) {
+        selectedFemaleVoice = voices.find(
+          (v) =>
+            v.lang.startsWith(lang === 'ta-IN' ? 'ta' : 'en') &&
+            (v.name.toLowerCase().includes('female') ||
+              v.name.toLowerCase().includes('zira') ||
+              v.name.toLowerCase().includes('susan'))
+        );
+      }
+      if (selectedFemaleVoice) {
+        utterance.voice = selectedFemaleVoice;
+      }
       
       utterance.onend = () => {
         if (onVolumeChange) onVolumeChange(0);

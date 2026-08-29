@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Minus, Square, Copy, X, Sparkles, ShieldCheck, Volume2, VolumeX, MessageSquare, Plus, FastForward } from 'lucide-react';
+import React from 'react';
+import { Sparkles, Settings, Volume2, VolumeX, Plus, FastForward, ChevronDown, Bot } from 'lucide-react';
 import { ProviderId } from '../types';
-import { ArcRing, ArcRingMode } from './ArcRing';
+import { ArcRingMode } from './ArcRing';
 
 interface WindowFrameProps {
   activeProvider: ProviderId;
@@ -29,77 +29,65 @@ export function WindowFrame({
   onToggleVoiceMode,
   voiceSpeed = 1.25,
   onVoiceSpeedChange,
-  arcRingMode = 'idle',
-  audioLevel = 0,
   onOpenSettings,
   onOpenSearch,
   onNewChat,
-  onOpenChat,
 }: WindowFrameProps) {
-  const [isMaximized, setIsMaximized] = useState(false);
-  const [memoryUsage, setMemoryUsage] = useState(148);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setMemoryUsage(140 + Math.floor(Math.random() * 20));
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
-
   return (
-    <div className="h-[52px] shrink-0 w-full bg-[#05070d] border-b border-[#182338] flex items-center justify-between px-6 select-none text-xs text-[#e9f0fb] z-50 overflow-x-auto no-scrollbar gap-3">
-      {/* Topbar Left */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        <span className="w-[6px] h-[6px] rounded-full bg-[#8fc0ff] dot-glow shrink-0" />
-        <span className="font-grotesk font-semibold text-[14px] tracking-[.04em] text-[#e9f0fb]">FRIDAY</span>
-        
-        <div className="font-mono text-[10.5px] text-[#6c7fa0] border border-[#182338] px-2.5 py-0.5 rounded-[20px] bg-[#0a0f1c] flex items-center gap-1.5">
-          <span className="truncate max-w-[140px] sm:max-w-[200px]">{activeModelName || 'Llama 3.3 70B'}</span>
-        </div>
+    <header className="h-[52px] shrink-0 w-full bg-[#212121] border-b border-[#2f2f2f] flex items-center justify-between px-4 select-none text-xs text-[#ececec] z-50 overflow-x-auto no-scrollbar gap-3">
+      {/* Topbar Left (ChatGPT Model Pill & Search) */}
+      <div className="flex items-center gap-3 shrink-0">
+        <button
+          onClick={onNewChat}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#2f2f2f] hover:bg-[#383838] text-white font-medium text-xs transition-colors border border-[#383838]"
+        >
+          <Bot className="w-4 h-4 text-white" />
+          <span className="font-semibold">{activeModelName || 'ChatGPT 4o'}</span>
+          <ChevronDown className="w-3 h-3 text-[#b4b4b4]" />
+        </button>
 
-        {/* Quick Search trigger button */}
+        {/* Quick Search Shortcut */}
         <button
           onClick={onOpenSearch}
-          className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded-[20px] border border-[#182338] text-[10.5px] font-mono text-[#6c7fa0] hover:text-[#8fc0ff] hover:border-[#1e3358] transition-colors"
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#333333] text-[11px] text-[#b4b4b4] hover:text-white hover:border-[#444444] transition-colors"
         >
-          <Sparkles className="w-3 h-3 text-[#8fc0ff]" />
+          <Sparkles className="w-3 h-3 text-white" />
           <span>Search</span>
-          <kbd className="px-1 py-0.1 text-[9px] rounded bg-[#0d1526] text-[#6c7fa0]">⌘K</kbd>
+          <kbd className="px-1 py-0.5 text-[9px] rounded bg-[#2f2f2f] text-[#b4b4b4]">⌘K</kbd>
         </button>
       </div>
 
-      {/* Topbar Center (Voice Toggle & Speed Control) */}
+      {/* Topbar Center (Voice Assistant Controls) */}
       <div className="flex items-center gap-2">
         {onToggleVoiceMode && (
           <div className="flex items-center gap-1.5">
             <button
               onClick={onToggleVoiceMode}
-              className={`flex items-center gap-1 px-2.5 py-0.5 rounded-[20px] border text-[10.5px] font-mono transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-medium transition-all ${
                 isVoiceModeActive
-                  ? 'bg-[#1e3358] border-[#4c8dff] text-[#8fc0ff]'
-                  : 'bg-[#0a0f1c] border-[#182338] text-[#6c7fa0] hover:text-[#e9f0fb]'
+                  ? 'bg-white text-black border-white shadow-sm'
+                  : 'bg-[#2f2f2f] border-[#383838] text-[#b4b4b4] hover:text-white'
               }`}
-              title="Toggle automatic TTS voice replies"
+              title="Toggle automatic voice speech replies"
             >
-              {isVoiceModeActive ? <Volume2 className="w-3 h-3 text-[#8fc0ff]" /> : <VolumeX className="w-3 h-3 text-[#6c7fa0]" />}
-              <span className="hidden sm:inline">Voice: {isVoiceModeActive ? 'On' : 'Off'}</span>
+              {isVoiceModeActive ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">Voice {isVoiceModeActive ? 'On' : 'Off'}</span>
             </button>
 
             {onVoiceSpeedChange && (
-              <div className="flex items-center gap-1 bg-[#0a0f1c] border border-[#182338] px-2 py-0.5 rounded-[20px] text-[10.5px] font-mono">
-                <FastForward className="w-3 h-3 text-[#8fc0ff]" />
+              <div className="flex items-center gap-1 bg-[#2f2f2f] border border-[#383838] px-2 py-0.5 rounded-full text-[11px]">
+                <FastForward className="w-3 h-3 text-[#b4b4b4]" />
                 <select
                   value={voiceSpeed || 1.25}
                   onChange={(e) => onVoiceSpeedChange(parseFloat(e.target.value))}
-                  className="bg-transparent text-[#8fc0ff] font-bold focus:outline-none cursor-pointer"
-                  title="Change Voice TTS Playback Speed"
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+                  title="Voice Speed"
                 >
-                  <option value="0.75" className="bg-[#0a0f1c] text-[#e9f0fb]">0.75x Slow</option>
-                  <option value="1.0" className="bg-[#0a0f1c] text-[#e9f0fb]">1.0x Normal</option>
-                  <option value="1.25" className="bg-[#0a0f1c] text-[#e9f0fb]">1.25x Fast</option>
-                  <option value="1.5" className="bg-[#0a0f1c] text-[#e9f0fb]">1.5x Speed</option>
-                  <option value="1.75" className="bg-[#0a0f1c] text-[#e9f0fb]">1.75x Fast+</option>
-                  <option value="2.0" className="bg-[#0a0f1c] text-[#e9f0fb]">2.0x Ultra ⚡</option>
+                  <option value="0.75" className="bg-[#212121] text-white">0.75x</option>
+                  <option value="1.0" className="bg-[#212121] text-white">1.0x</option>
+                  <option value="1.25" className="bg-[#212121] text-white">1.25x</option>
+                  <option value="1.5" className="bg-[#212121] text-white">1.5x</option>
+                  <option value="2.0" className="bg-[#212121] text-white">2.0x</option>
                 </select>
               </div>
             )}
@@ -107,26 +95,32 @@ export function WindowFrame({
         )}
       </div>
 
-      {/* Topbar Right */}
-      <div className="flex items-center gap-4 font-mono text-[10.5px] text-[#3c4a68] shrink-0">
-        <span className="hidden sm:inline">
-          <b className="text-[#6c7fa0] font-medium">{latencyMs}ms</b> latency
-        </span>
-        <span className="hidden sm:inline">
-          <b className="text-[#6c7fa0] font-medium">{tokensPerSec}</b> t/s
-        </span>
-        <span>
-          <b className="text-[#6c7fa0] font-medium">{memoryUsage}</b> mb
-        </span>
+      {/* Topbar Right (Settings & Quick Action) */}
+      <div className="flex items-center gap-3 text-[11px] text-[#8e8e8e] shrink-0">
+        {latencyMs > 0 && (
+          <span className="hidden md:inline font-mono">
+            {latencyMs}ms
+          </span>
+        )}
+
+        <button
+          onClick={onNewChat}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#2f2f2f] hover:bg-[#383838] text-white transition-colors border border-[#383838]"
+          title="New Chat"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">New chat</span>
+        </button>
 
         <button
           onClick={onOpenSettings}
-          className="p-1 rounded-lg text-[#6c7fa0] hover:text-[#8fc0ff] transition-colors ml-1"
-          title="Configure API Keys & Settings"
+          className="p-1.5 rounded-lg text-[#b4b4b4] hover:text-white hover:bg-[#2f2f2f] transition-colors"
+          title="Settings"
         >
-          <ShieldCheck className="w-4 h-4" />
+          <Settings className="w-4 h-4" />
         </button>
       </div>
-    </div>
+    </header>
   );
 }
+

@@ -382,72 +382,54 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
   };
 
   return (
-    <div className="w-full flex-1 h-full min-h-0 min-w-0 overflow-y-auto p-6 bg-[#030712] z-10 space-y-6 font-['Inter',sans-serif]">
+    <div className="w-full flex-1 h-full min-h-0 min-w-0 overflow-y-auto p-6 bg-[#212121] z-10 space-y-6 font-['Inter',sans-serif]">
       {/* Top Bar Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#12275C] pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#2f2f2f] pb-4">
         <div>
           <div className="flex items-center gap-3">
-            <ArcRing mode={voiceStatus} audioLevel={audioAmplitude} size={42} />
+            <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center font-bold text-xs shadow-md shrink-0">
+              <Bot className="w-5 h-5 text-black" />
+            </div>
             <div>
-              <h1 className="text-xl font-extrabold text-[#EAF1FF] font-grotesk tracking-wider flex items-center gap-2">
-                <span>F.R.I.D.A.Y. STARK VOICE HUD MATRIX</span>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-[#2E6FF2]/20 text-[#5B9CFF] border border-[#2E6FF2] font-mono font-bold uppercase">
-                  TAMIL / ENG REAL TTS ACTIVE
+              <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                <span>ChatGPT Voice Mode</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#2f2f2f] text-white border border-[#383838] font-medium">
+                  {selectedLanguage === 'ta-IN' ? 'Tamil (தமிழ்)' : 'English (en-US)'}
                 </span>
               </h1>
-              <p className="text-xs text-[#6B7A99] mt-0.5 font-mono">
-                Neural Cloud TTS output (ta-IN / en-US) with amplitude-synced Stark Arc Reactor visualizer
+              <p className="text-xs text-[#8e8e8e] mt-0.5">
+                Real-time conversational voice interaction with speech synthesis
               </p>
             </div>
           </div>
         </div>
 
-        {/* Live Audio State Pills & Chat Navigation */}
-        <div className="flex flex-wrap items-center gap-2 font-mono">
+        {/* Action Controls */}
+        <div className="flex flex-wrap items-center gap-2">
           {onSelectTab && (
             <button
               onClick={() => onSelectTab('chat')}
-              className="px-3 py-1.5 rounded-xl bg-[#2E6FF2]/20 border border-[#2E6FF2] text-[#5B9CFF] hover:bg-[#2E6FF2]/30 text-xs font-bold transition-all flex items-center gap-1.5"
+              className="px-3 py-1.5 rounded-lg bg-[#2f2f2f] hover:bg-[#383838] border border-[#383838] text-white text-xs font-medium transition-colors flex items-center gap-1.5"
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              <span>AI Chat Box</span>
+              <span>Back to Chat</span>
             </button>
           )}
 
-          {onNewConversation && (
-            <button
-              onClick={() => {
-                onNewConversation();
-                if (onSelectTab) onSelectTab('chat');
-              }}
-              className="px-3 py-1.5 rounded-xl bg-[#2E6FF2] hover:bg-[#5B9CFF] text-white text-xs font-extrabold transition-all flex items-center gap-1 shadow-md shadow-[#2E6FF2]/20"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ New Chat</span>
-            </button>
-          )}
-
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0A1128] border border-[#12275C] text-xs">
-            <Activity className="w-4 h-4 text-[#5B9CFF]" />
-            <span className="text-[#6B7A99]">Latency:</span>
-            <span className="text-[#5B9CFF] font-bold">{latencyMs}ms</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#0A1128] border border-[#12275C] text-xs font-mono">
-            <FastForward className="w-4 h-4 text-[#5B9CFF]" />
-            <span className="text-[#6B7A99]">Speed:</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#171717] border border-[#2f2f2f] text-xs">
+            <FastForward className="w-3.5 h-3.5 text-[#b4b4b4]" />
+            <span className="text-[#8e8e8e]">Speed:</span>
             <select
               value={settings.voiceSpeed || 1.25}
               onChange={(e) => onSaveSettings && onSaveSettings({ ...settings, voiceSpeed: parseFloat(e.target.value) })}
-              className="bg-transparent text-[#5B9CFF] font-bold focus:outline-none cursor-pointer"
-              title="Voice TTS Playback Speed"
+              className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+              title="Voice Speed"
             >
-              <option value="0.75" className="bg-[#0A1128] text-white">0.75x Slow</option>
-              <option value="1.0" className="bg-[#0A1128] text-white">1.0x Normal</option>
-              <option value="1.25" className="bg-[#0A1128] text-white">1.25x Fast</option>
-              <option value="1.5" className="bg-[#0A1128] text-white">1.5x Speed</option>
-              <option value="1.75" className="bg-[#0A1128] text-white">1.75x Fast+</option>
-              <option value="2.0" className="bg-[#0A1128] text-white">2.0x Ultra ⚡</option>
+              <option value="0.75" className="bg-[#212121] text-white">0.75x Slow</option>
+              <option value="1.0" className="bg-[#212121] text-white">1.0x Normal</option>
+              <option value="1.25" className="bg-[#212121] text-white">1.25x Fast</option>
+              <option value="1.5" className="bg-[#212121] text-white">1.5x Speed</option>
+              <option value="2.0" className="bg-[#212121] text-white">2.0x Ultra</option>
             </select>
           </div>
 
@@ -456,155 +438,62 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
               if (!isMuted) stopSpeech();
               setIsMuted(!isMuted);
             }}
-            className={`px-3 py-1.5 rounded-xl border text-xs font-mono transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg border text-xs transition-colors flex items-center gap-1.5 ${
               isMuted
-                ? 'bg-[#FF5C4D]/10 border-[#FF5C4D]/40 text-[#FF5C4D]'
-                : 'bg-[#2E6FF2]/10 border-[#12275C] text-[#EAF1FF] hover:border-[#2E6FF2]'
+                ? 'bg-red-950/40 border-red-800 text-red-300'
+                : 'bg-[#2f2f2f] border-[#383838] text-white hover:bg-[#383838]'
             }`}
-            title={isMuted ? 'Unmute Speech Output' : 'Mute Speech Output'}
+            title={isMuted ? 'Unmute Speech' : 'Mute Speech'}
           >
-            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-[#5B9CFF]" />}
-            <span className="hidden sm:inline">{isMuted ? 'Audio Muted' : 'Audio On'}</span>
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-white" />}
+            <span className="hidden sm:inline">{isMuted ? 'Muted' : 'Audio On'}</span>
           </button>
         </div>
       </div>
 
-      {/* AI KEY & MODEL INFORMATION CARD */}
-      <div className="p-5 rounded-2xl bg-[#0A1128] border border-[#12275C] shadow-2xl space-y-4 relative overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#12275C] pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-[#2E6FF2]/20 text-[#5B9CFF] border border-[#2E6FF2]">
-              <Key className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-extrabold text-[#EAF1FF] font-grotesk flex items-center gap-2">
-                <span>Active Model & Key Disclosure</span>
-                <Info className="w-3.5 h-3.5 text-[#5B9CFF]" />
-              </h2>
-              <p className="text-[11px] text-[#6B7A99] font-mono">
-                Real-time transparency disclosure of LLM engine and cloud neural voice pipeline.
-              </p>
-            </div>
-          </div>
-
-          <select
-            value={activeModelId}
-            onChange={(e) => setActiveModelId(e.target.value)}
-            className="bg-[#030712] border border-[#12275C] text-[#5B9CFF] text-xs rounded-xl px-3 py-1.5 focus:outline-none font-mono"
-          >
-            {PROVIDERS.flatMap((p) =>
-              p.models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {p.name} - {m.name}
-                </option>
-              ))
-            )}
-          </select>
-        </div>
-
-        {/* 4 Grid Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Card 1 */}
-          <div className="p-3.5 rounded-xl bg-[#030712] border border-[#12275C] space-y-1">
-            <div className="flex items-center justify-between text-[11px] text-[#6B7A99] font-mono">
-              <span className="uppercase font-bold text-[#5B9CFF]">API Key In Use</span>
-              <ShieldCheck className="w-3.5 h-3.5 text-[#5B9CFF]" />
-            </div>
-            <div className="font-mono text-xs font-bold text-[#EAF1FF] truncate" title={activeKeyName}>
-              {activeKeyName}
-            </div>
-            <div className="text-[10px] text-[#6B7A99] truncate font-mono" title={keyDisplayStatus}>
-              {keyDisplayStatus}
-            </div>
-          </div>
-
-          {/* Card 2 */}
-          <div className="p-3.5 rounded-xl bg-[#030712] border border-[#12275C] space-y-1">
-            <div className="flex items-center justify-between text-[11px] text-[#6B7A99] font-mono">
-              <span className="uppercase font-bold text-[#5B9CFF]">Active AI Model</span>
-              <Cpu className="w-3.5 h-3.5 text-[#5B9CFF]" />
-            </div>
-            <div className="font-mono text-xs font-bold text-[#EAF1FF] truncate">
-              {routed.model.name}
-            </div>
-            <div className="text-[10px] font-mono text-[#5B9CFF] truncate">
-              {routed.model.id}
-            </div>
-          </div>
-
-          {/* Card 3 */}
-          <div className="p-3.5 rounded-xl bg-[#030712] border border-[#12275C] space-y-1">
-            <div className="flex items-center justify-between text-[11px] text-[#6B7A99] font-mono">
-              <span className="uppercase font-bold text-[#5B9CFF]">Inference Engine</span>
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-            </div>
-            <div className="font-mono text-xs font-bold text-[#EAF1FF] truncate">
-              {activeProviderName}
-            </div>
-            <div className="text-[10px] font-mono text-amber-400 truncate">
-              Stark Reactor Sub-15ms
-            </div>
-          </div>
-
-          {/* Card 4 */}
-          <div className="p-3.5 rounded-xl bg-[#030712] border border-[#12275C] space-y-1">
-            <div className="flex items-center justify-between text-[11px] text-[#6B7A99] font-mono">
-              <span className="uppercase font-bold text-[#5B9CFF]">Tamil Neural TTS</span>
-              <Volume2 className="w-3.5 h-3.5 text-[#5B9CFF]" />
-            </div>
-            <div className="font-mono text-xs font-bold text-[#EAF1FF] truncate">
-              Google Neural2 (ta-IN)
-            </div>
-            <div className="text-[10px] font-mono text-[#5B9CFF] truncate">
-              Rate: 0.92x • SSML Tuned
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* MAIN STAGE & SIGNATURE ARC REACTOR RING */}
-      <div className="p-8 rounded-3xl bg-[#0A1128] border border-[#12275C] shadow-2xl flex flex-col items-center justify-center text-center relative overflow-hidden min-h-[340px]">
+      {/* Main Voice Orb Stage */}
+      <div className="p-8 rounded-3xl bg-[#171717] border border-[#2f2f2f] shadow-xl flex flex-col items-center justify-center text-center relative overflow-hidden min-h-[320px]">
         {/* Dynamic Status Badge */}
-        <div className="mb-6 z-10 font-mono">
+        <div className="mb-6 z-10">
           {voiceStatus === 'listening' ? (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2E6FF2]/20 border border-[#2E6FF2] text-[#5B9CFF] text-xs font-bold animate-pulse">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#5B9CFF] animate-ping" />
-              <span>LISTENING NOW... SPEAK IN TAMIL OR ENGLISH</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-black text-xs font-semibold shadow-md animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+              <span>Listening... Speak in {selectedLanguage === 'ta-IN' ? 'Tamil' : 'English'}</span>
             </div>
           ) : voiceStatus === 'thinking' ? (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-500 text-amber-400 text-xs font-bold">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-              <span>STARK REACTOR INFERRING ({routed.model.name})...</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2f2f2f] border border-[#444444] text-white text-xs font-medium">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+              <span>Thinking ({routed.model.name})...</span>
             </div>
           ) : voiceStatus === 'speaking' ? (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2E6FF2]/30 border border-[#2E6FF2] text-[#5B9CFF] text-xs font-bold">
-              <Volume2 className="w-3.5 h-3.5 animate-bounce text-[#5B9CFF]" />
-              <span>SPEAKING TAMIL / ENG RESPONSE...</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white text-black text-xs font-semibold shadow-md">
+              <Volume2 className="w-3.5 h-3.5 animate-bounce text-black" />
+              <span>Speaking response...</span>
             </div>
           ) : (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#030712] border border-[#12275C] text-[#6B7A99] text-xs">
-              <MicOff className="w-3.5 h-3.5 text-[#6B7A99]" />
-              <span>STARK VOICE MATRIX IDLE • TAP ARC RING TO SPEAK</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#212121] border border-[#2f2f2f] text-[#8e8e8e] text-xs">
+              <Mic className="w-3.5 h-3.5 text-[#8e8e8e]" />
+              <span>Tap Orb or Microphone to start speaking</span>
             </div>
           )}
         </div>
 
-        {/* Central Glowing Mic & Arc Ring Stage */}
-        <div className="relative flex flex-col items-center justify-center my-2 z-10">
+        {/* Central Orb */}
+        <div className="relative flex flex-col items-center justify-center my-4 z-10">
           <button
             onClick={isListening ? stopListening : startListening}
-            className="group outline-none focus:outline-none cursor-pointer transition-transform hover:scale-105 active:scale-95"
-            title={isListening ? 'Stop Listening' : 'Tap Arc Ring to Speak'}
+            className="outline-none focus:outline-none cursor-pointer transition-transform hover:scale-105 active:scale-95"
+            title={isListening ? 'Stop listening' : 'Tap to speak'}
           >
-            <ArcRing mode={voiceStatus} audioLevel={audioAmplitude} size={140} />
+            <ArcRing mode={voiceStatus} audioLevel={audioAmplitude} size={150} />
           </button>
-          <p className="text-[11px] text-[#6B7A99] font-mono mt-3">
-            Tap Arc Ring or click button below to activate voice matrix
+          <p className="text-xs text-[#8e8e8e] mt-4">
+            Tap the orb to start or stop listening
           </p>
         </div>
 
-        {/* Interactive Direct Voice / Text Input Bar */}
-        <div className="mt-4 w-full max-w-xl z-10 space-y-2">
+        {/* Input prompt fallback */}
+        <div className="mt-4 w-full max-w-lg z-10">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -615,17 +504,17 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
               stopListening();
               handleProcessVoiceQuery(textToSubmit);
             }}
-            className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#030712] border border-[#2E6FF2]/50 shadow-inner focus-within:border-[#5B9CFF] focus-within:ring-2 focus-within:ring-[#2E6FF2]/30 transition-all"
+            className="flex items-center gap-2 p-1.5 rounded-2xl bg-[#212121] border border-[#383838] focus-within:border-[#555555] transition-colors"
           >
             <button
               type="button"
               onClick={isListening ? stopListening : startListening}
-              className={`p-2.5 rounded-xl transition-all flex items-center justify-center ${
+              className={`p-2 rounded-xl transition-colors ${
                 isListening
-                  ? 'bg-[#FF5C4D] text-white animate-pulse'
-                  : 'bg-[#2E6FF2]/20 text-[#5B9CFF] hover:bg-[#2E6FF2]/30'
+                  ? 'bg-red-600 text-white animate-pulse'
+                  : 'bg-[#2f2f2f] text-white hover:bg-[#383838]'
               }`}
-              title={isListening ? 'Stop Mic' : 'Start Mic Recording'}
+              title={isListening ? 'Stop mic' : 'Start microphone'}
             >
               <Mic className="w-4 h-4" />
             </button>
@@ -634,159 +523,109 @@ export function VoiceView({ settings, onSaveSettings, onSpeechStateChange, onSel
               type="text"
               value={inputPrompt}
               onChange={(e) => setInputPrompt(e.target.value)}
-              placeholder="Type or speak prompt for F.R.I.D.A.Y. (e.g. 'வணக்கம் ஃப்ரைடே')..."
-              className="flex-1 bg-transparent px-2 py-1.5 text-xs text-[#EAF1FF] placeholder-[#6B7A99] focus:outline-none font-mono"
+              placeholder="Or type a question for voice reply..."
+              className="flex-1 bg-transparent px-2 py-1 text-xs text-white placeholder-[#737373] focus:outline-none"
             />
 
             <button
               type="submit"
               disabled={!inputPrompt.trim()}
-              className="px-4 py-2 rounded-xl bg-[#2E6FF2] hover:bg-[#5B9CFF] text-white font-grotesk font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-md shadow-[#2E6FF2]/30 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-white hover:bg-gray-200 text-black font-medium text-xs flex items-center gap-1 transition-all disabled:opacity-40"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Transmit Voice</span>
+              <span>Send</span>
             </button>
           </form>
-
-          {micNotice && (
-            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-[11px] font-mono flex items-center gap-2 text-left">
-              <Info className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>{micNotice}</span>
-            </div>
-          )}
         </div>
 
-        {/* Controls Bar */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-4 z-10 font-mono text-xs">
+        {/* Control bar */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3 z-10 text-xs">
           {voiceStatus === 'speaking' && (
             <button
               onClick={() => {
                 stopSpeech();
                 updateStatus('idle', 0);
               }}
-              className="px-4 py-2 rounded-xl bg-[#FF5C4D] hover:bg-red-600 text-white font-bold transition-all shadow-lg flex items-center gap-2"
+              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors flex items-center gap-1.5"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
-              <span>Stop Speech Mid-Sentence</span>
+              <span>Stop Speaking</span>
             </button>
           )}
 
           <button
             onClick={() => setIsAutoLoop(!isAutoLoop)}
-            className={`px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
               isAutoLoop
-                ? 'bg-[#2E6FF2]/20 border-[#2E6FF2] text-[#5B9CFF] font-bold'
-                : 'bg-[#030712] border-[#12275C] text-[#6B7A99]'
+                ? 'bg-white text-black border-white font-medium'
+                : 'bg-[#212121] border-[#2f2f2f] text-[#8e8e8e]'
             }`}
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Hands-Free Auto Loop: {isAutoLoop ? 'ON' : 'OFF'}</span>
           </button>
 
-          {/* Voice Language Choice */}
-          <div className="flex items-center gap-2 bg-[#030712] px-3 py-1.5 rounded-xl border border-[#12275C] text-[#EAF1FF]">
-            <Languages className="w-3.5 h-3.5 text-[#5B9CFF]" />
-            <span className="text-[#6B7A99] font-bold">Language / குரல்:</span>
+          <div className="flex items-center gap-2 bg-[#212121] px-3 py-1.5 rounded-lg border border-[#2f2f2f] text-white">
+            <Languages className="w-3.5 h-3.5 text-[#b4b4b4]" />
+            <span className="text-[#8e8e8e]">Voice Language:</span>
             <select
               value={selectedLanguage}
               onChange={(e) => handleLanguageChange(e.target.value as 'ta-IN' | 'en-US')}
-              className="bg-[#0A1128] text-[#5B9CFF] font-bold rounded-lg px-2 py-0.5 focus:outline-none border border-[#12275C]"
+              className="bg-[#171717] text-white font-medium rounded px-2 py-0.5 focus:outline-none border border-[#2f2f2f]"
             >
-              <option value="ta-IN">🇮🇳 தமிழ் (Tamil Neural)</option>
-              <option value="en-US">🇺🇸 English (Neural)</option>
+              <option value="en-US">English (en-US)</option>
+              <option value="ta-IN">தமிழ் (ta-IN)</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* LIVE TRANSCRIPT & DIALOGUE HISTORY */}
+      {/* Transcript & Response Area */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* User Speech Capture Box */}
-        <div className="p-4 rounded-2xl bg-[#0A1128] border border-[#12275C] space-y-2">
-          <div className="flex items-center justify-between text-xs font-mono text-[#6B7A99] pb-2 border-b border-[#12275C]">
-            <span className="flex items-center gap-1.5 font-bold text-[#EAF1FF]">
-              <User className="w-3.5 h-3.5 text-[#5B9CFF]" />
-              <span>User Speech Input (STT)</span>
+        {/* User STT */}
+        <div className="p-4 rounded-2xl bg-[#171717] border border-[#2f2f2f] space-y-2">
+          <div className="flex items-center justify-between text-xs text-[#8e8e8e] pb-2 border-b border-[#2f2f2f]">
+            <span className="flex items-center gap-1.5 font-medium text-white">
+              <User className="w-3.5 h-3.5 text-white" />
+              <span>You said</span>
             </span>
-            <span>Microphone Capture</span>
+            <span>Microphone capture</span>
           </div>
 
-          <div className="min-h-[80px] p-3 rounded-xl bg-[#030712] border border-[#12275C] text-xs text-[#EAF1FF] font-mono leading-relaxed">
+          <div className="min-h-[70px] p-3 rounded-xl bg-[#212121] border border-[#2f2f2f] text-xs text-white leading-relaxed">
             {transcript || lastUserSpeech ? (
               <span>"{transcript || lastUserSpeech}"</span>
             ) : (
-              <span className="text-[#6B7A99] italic">No audio input captured yet. Tap Arc Ring to speak in Tamil or English.</span>
+              <span className="text-[#737373] italic">No voice input captured yet. Speak into the microphone.</span>
             )}
           </div>
         </div>
 
-        {/* AI Voice Output Box */}
-        <div className="p-4 rounded-2xl bg-[#0A1128] border border-[#12275C] space-y-2">
-          <div className="flex items-center justify-between text-xs font-mono text-[#6B7A99] pb-2 border-b border-[#12275C]">
-            <span className="flex items-center gap-1.5 font-bold text-[#EAF1FF]">
-              <Bot className="w-3.5 h-3.5 text-[#5B9CFF]" />
-              <span>F.R.I.D.A.Y. Speech Output (TTS)</span>
+        {/* AI TTS Response */}
+        <div className="p-4 rounded-2xl bg-[#171717] border border-[#2f2f2f] space-y-2">
+          <div className="flex items-center justify-between text-xs text-[#8e8e8e] pb-2 border-b border-[#2f2f2f]">
+            <span className="flex items-center gap-1.5 font-medium text-white">
+              <Bot className="w-3.5 h-3.5 text-white" />
+              <span>ChatGPT voice reply</span>
             </span>
-            <span className="text-[#5B9CFF] font-bold">{routed.model.name}</span>
+            <span className="text-white font-medium">{routed.model.name}</span>
           </div>
 
-          <div className="min-h-[80px] p-3 rounded-xl bg-[#030712] border border-[#12275C] text-xs text-[#EAF1FF] leading-relaxed">
+          <div className="min-h-[70px] p-3 rounded-xl bg-[#212121] border border-[#2f2f2f] text-xs text-white leading-relaxed">
             {aiResponse ? (
               <div className="space-y-2">
                 <p>{aiResponse}</p>
                 <button
                   onClick={() => speakAudioResponse(aiResponse)}
-                  className="px-2.5 py-1 rounded bg-[#2E6FF2]/20 hover:bg-[#2E6FF2]/30 text-[#5B9CFF] text-[10px] font-mono font-bold flex items-center gap-1 transition-colors border border-[#12275C]"
+                  className="px-2.5 py-1 rounded bg-[#2f2f2f] hover:bg-[#383838] text-white text-[11px] font-medium flex items-center gap-1 transition-colors border border-[#383838]"
                 >
                   <Play className="w-3 h-3" />
-                  <span>Replay Neural TTS Voice</span>
+                  <span>Replay voice</span>
                 </button>
               </div>
             ) : (
-              <span className="text-[#6B7A99] italic">AI voice response will appear and play aloud here.</span>
+              <span className="text-[#737373] italic">Assistant voice response will appear and play aloud here.</span>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* QUICK PRESET VOICE COMMAND CARDS */}
-      <div className="p-4 rounded-2xl bg-[#0A1128] border border-[#12275C] space-y-3">
-        <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-[#5B9CFF] flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-[#5B9CFF]" />
-          <span>Quick Tamil & English Voice Test Prompts</span>
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-          {[
-            {
-              title: '🇮🇳 Tamil Voice Test',
-              prompt: 'வணக்கம் ஃப்ரைடே, உங்களின் தற்போதைய AI மாடல் மற்றும் நிலையை விளக்குங்கள்.',
-            },
-            {
-              title: 'What AI Key & Model?',
-              prompt: 'Tell me exactly what AI key and model we are using right now.',
-            },
-            {
-              title: 'Stark Arc Reactor',
-              prompt: 'Explain how the Stark Mark HUD Arc Reactor responds to voice amplitude.',
-            },
-            {
-              title: 'Active Agents Status',
-              prompt: 'Give me a brief summary of active AI agents in this system.',
-            },
-          ].map((item, idx) => (
-            <button
-              key={idx}
-              onClick={() => handleRunPresetQuery(item.prompt)}
-              className="p-3 rounded-xl bg-[#030712] border border-[#12275C] hover:border-[#2E6FF2] text-left transition-all group font-mono"
-            >
-              <div className="font-bold text-xs text-[#EAF1FF] group-hover:text-[#5B9CFF] flex items-center justify-between mb-1">
-                <span>{item.title}</span>
-                <Play className="w-3 h-3 text-[#6B7A99] group-hover:text-[#5B9CFF]" />
-              </div>
-              <div className="text-[10px] text-[#6B7A99] line-clamp-2">"{item.prompt}"</div>
-            </button>
-          ))}
         </div>
       </div>
     </div>
